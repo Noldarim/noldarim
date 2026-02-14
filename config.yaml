@@ -1,0 +1,181 @@
+# Noldarim Configuration File
+# 
+# All values can be overridden with environment variables using the NOLDARIM_ prefix
+# For example: database.host can be set with NOLDARIM_DATABASE_HOST
+#
+# Nested values use underscores: NOLDARIM_CONTAINER_RESOURCE_LIMITS_MEMORY_MB
+
+# Database configuration
+database:
+  driver: sqlite  # Options: sqlite, postgres, mysql
+  database: noldarim.db
+  # host: localhost     # For postgres/mysql
+  # port: 5432          # For postgres/mysql
+  # username: noldarim      # For postgres/mysql
+  # password: ""        # For postgres/mysql
+  # ssl_mode: disable   # For postgres
+
+# Logging configuration
+log:
+  # Global settings
+  level: INFO  # Global default log level: TRACE, DEBUG, INFO, WARN, ERROR, FATAL, PANIC
+  format: console  # Options: console (colored), json
+  dir: ./logs  # Deprecated - use output.path instead
+  
+  # Output destinations
+  output:
+    - type: file
+      enabled: true
+      path: ./logs/noldarim.log
+      rotate:
+        max_size_mb: 100      # Rotate when file reaches this size
+        max_backups: 7        # Keep this many old log files
+        max_age_days: 30      # Delete logs older than this
+        compress: true        # Compress rotated files
+    - type: console
+      enabled: false  # Disabled by default to prevent TUI corruption
+  
+  # Per-package log levels
+  levels:
+    orchestrator: DEBUG
+    temporal: DEBUG
+    tui: DEBUG          
+    database: DEBUG
+    git: DEBUG
+    container: DEBUG
+    api: DEBUG
+  
+  # Context fields to include
+  context:
+    include_caller: true       # Include file:line
+    include_timestamp: true    # Include timestamps
+    include_level: true        # Include log level
+    include_stack_trace: ERROR # Include stack trace for ERROR and above
+  
+  # Sampling for high-frequency logs
+  sampling:
+    enabled: false
+    initial: 100      # Log first N messages
+    thereafter: 100   # Then log every Nth message
+    tick: 1s         # Reset sampling every tick
+
+# Temporal workflow engine configuration
+temporal:
+  host_port: 127.0.0.1:7233
+  namespace: default
+  task_queue: noldarim-task-queue
+  worker:
+    max_concurrent_activities: 100
+    max_concurrent_workflows: 100
+    activities_per_second: 100000
+  activity:
+    start_to_close_timeout: 30s
+    schedule_to_close_timeout: 5m
+    heartbeat_timeout: 5s
+    retry_policy:
+      initial_interval: 1s
+      backoff_coefficient: 2.0
+      maximum_interval: 1m
+      maximum_attempts: 3
+  workflow:
+    workflow_execution_timeout: 24h
+    workflow_run_timeout: 24h
+    workflow_task_timeout: 10s
+
+# Container configuration
+container:
+  default_image: noldarim-agent  # Default image for task containers
+  workspace_dir: /workspace    # Mount point inside containers
+  docker_host: unix://${HOME}/.docker/run/docker.sock
+  network_mode: container:noldarim-net-container
+  
+  # Additional volumes to mount in all containers
+  volumes: []
+    # - host: /opt/tools
+    #   container: /tools
+    #   read_only: true
+  
+  # Environment variables for all containers
+  environment: {}
+    # CUSTOM_VAR: value
+  
+  # Resource limits
+  resource_limits:
+    cpu_shares: 1024      # CPU shares (relative weight)
+    memory_mb: 2048       # Memory limit in MB
+    disk_size_mb: 10240   # Disk size limit in MB
+  
+  # Container operation timeouts
+  timeouts:
+    stop_timeout: 10s         # How long to wait for graceful container stop
+    task_duplicate_window: 5m # Window for considering tasks as duplicates
+
+# Git configuration
+git:
+  worktree_base_path: ./worktrees
+  default_branch: main
+  create_git_repo_for_project_if_not_exist: true
+
+# Server configuration
+server:
+  host: 127.0.0.1
+  port: 8080
+  # allowed_origins:       # Empty = allow all origins (development)
+  #   - http://localhost:3000
+  #   - https://yourdomain.com
+
+# Claude configuration
+claude:
+  claude_json_host_path: ~/.claude.json  # Path to Claude config file on host to copy to containers
+
+# AI Agent configuration
+# This defines the default agent behavior when processing tasks
+agent:
+  default_tool: claude       # Tool name: "claude", "gemini", etc.
+  default_version: "4.5"     # Tool version
+  flag_format: space         # CLI flag format: "space" (--flag value) or "equals" (--flag=value)
+
+  # Prompt template with variable placeholders
+  # Available variables: title, description, task_file
+  prompt_template: |
+    Please complete the task described below.
+
+    Task: {{.title}}
+    Description: {{.description}}
+
+    The task details have been written to: {{.task_file}}
+
+    Please read the task file for complete information and execute the requested work in the workspace directory.
+
+  # Default values for template variables (populated at runtime)
+  variables:
+    title: ""
+    description: ""
+    task_file: ""
+
+  # Tool-specific options (CLI flags)
+  # These are passed as command-line flags to the tool
+  tool_options:
+    model: claude-sonnet-4-5  # Model to use
+    dangerously-skip-permissions: true
+    output-format: json
+    # max_tokens: 4000        # Not supported by Claude CLI (ignored if specified)
+
+# Claude Code hooks configuration
+# Hooks capture AI activity events (tool calls, results, etc.) and forward to Temporal
+hooks:
+  enable_logging: true  # Enable debug logging to /workspace/.noldarim/hooks-debug.log
+  script_path: ""        # Hook script path in container (default: /home/noldarim/.noldarim/bin/noldarim-hook.sh)
+
+# Pipeline configuration
+# Default prompt composition applied to all pipeline steps
+pipeline:
+  prompt_prefix: ""  # Prepended to all step prompts (optional)
+
+  # Appended to all step prompts - requests structured summary for documentation
+  prompt_suffix: |
+
+    When you complete this task, end your response with a summary in this exact format:
+    ---SUMMARY---
+    {"reason": "brief explanation of why these changes were needed", "changes": ["change 1", "change 2", "change 3"]}
+    ---END SUMMARY---

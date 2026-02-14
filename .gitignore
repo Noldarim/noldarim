@@ -1,0 +1,42 @@
+# Binaries
+bin/
+
+# Database
+*.db
+*.sqlite
+*.sqlite3
+
+# Logs
+*.log
+logs/
+test-logs/
+
+# Test artifacts
+coverage.html
+coverage.out
+test-worktrees/
+
+# Worktrees
+worktrees/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node (frontend)
+node_modules/
+
+# Archived docs
+docs/archive/

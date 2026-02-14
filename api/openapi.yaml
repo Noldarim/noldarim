@@ -1,0 +1,897 @@
+openapi: 3.1.0
+info:
+  title: noldarim API
+  version: 1.0.0
+  description: |
+    REST + WebSocket API for the server runtime (`cmd/server`).
+
+    **Primary application path**: desktop client -> server.
+
+    REST handlers call services directly in-process:
+    - Reads use DataService / GitServiceManager.
+    - Mutations use PipelineService.
+
+    WebSocket (`/ws`) streams orchestrator lifecycle/AI activity events to connected clients.
+
+    **Naming convention**:
+    - Request bodies use `snake_case`.
+    - Response payload keys follow the returned Go struct tags/fields.
+      (Examples: model payloads are mostly `snake_case`; some service result payloads expose fields like `RunID`.)
+
+servers:
+  - url: http://localhost:8080
+    description: Local development
+
+paths:
+  /api/v1/projects:
+    get:
+      operationId: getProjects
+      summary: List all projects
+      description: Direct database read.
+      responses:
+        "200":
+          description: Projects loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ProjectsLoadedEvent"
+        "500":
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: createProject
+      summary: Create a new project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateProjectRequest"
+      responses:
+        "200":
+          description: Project created
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Project"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/tasks:
+    get:
+      operationId: getTasks
+      summary: List tasks for a project
+      description: Direct database read.
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Tasks loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TasksLoadedEvent"
+        "500":
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: createTask
+      summary: Create a new task
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTaskRequest"
+      responses:
+        "200":
+          description: Task created (pipeline started)
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/tasks/{taskId}/toggle:
+    post:
+      operationId: toggleTask
+      summary: Toggle task completion status
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/TaskID"
+      responses:
+        "200":
+          description: Task toggled
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/tasks/{taskId}:
+    delete:
+      operationId: deleteTask
+      summary: Delete a task
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/TaskID"
+      responses:
+        "200":
+          description: Task deleted
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/StatusResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/tasks/{taskId}/activity:
+    get:
+      operationId: getAIActivity
+      summary: Get AI activity events for a task
+      description: Direct database read.
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - $ref: "#/components/parameters/TaskID"
+      responses:
+        "200":
+          description: AI activity loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIActivityBatchEvent"
+        "500":
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/commits:
+    get:
+      operationId: getCommits
+      summary: Get commit history for a project
+      description: Direct git read — queries the repository on disk.
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+          description: Maximum number of commits to return (max 500)
+      responses:
+        "200":
+          description: Commits loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CommitsLoadedEvent"
+        "500":
+          description: Database or git error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/projects/{id}/pipelines:
+    get:
+      operationId: getPipelineRuns
+      summary: List pipeline runs for a project
+      description: Direct database read.
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      responses:
+        "200":
+          description: Pipeline runs loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunsLoadedEvent"
+        "500":
+          description: Database error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+    post:
+      operationId: startPipeline
+      summary: Start a new pipeline run
+      parameters:
+        - $ref: "#/components/parameters/ProjectID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/StartPipelineRequest"
+      responses:
+        "200":
+          description: Pipeline started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRunResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/pipelines/{runId}/cancel:
+    post:
+      operationId: cancelPipeline
+      summary: Cancel a running pipeline
+      parameters:
+        - name: runId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CancelPipelineRequest"
+      responses:
+        "200":
+          description: Pipeline cancellation completed
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CancelPipelineResult"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /ws:
+    get:
+      operationId: websocket
+      summary: WebSocket event stream
+      description: |
+        Upgrades to WebSocket. Once connected, send subscription messages to filter events.
+
+        **Client → Server messages:**
+        ```json
+        {"type": "subscribe", "filters": {"project_id": "x", "task_id": "y"}}
+        {"type": "unsubscribe", "filters": {"project_id": "x"}}
+        ```
+
+        **Server → Client messages:**
+        ```json
+        {"type": "event", "event_type": "protocol.TaskLifecycleEvent", "payload": {...}}
+        {"type": "error", "message": "..."}
+        ```
+
+        Clients with no active filters receive all events.
+      responses:
+        "101":
+          description: Switching to WebSocket protocol
+
+components:
+  parameters:
+    ProjectID:
+      name: id
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Project ID
+
+    TaskID:
+      name: taskId
+      in: path
+      required: true
+      schema:
+        type: string
+      description: Task ID
+
+  responses:
+    BadRequest:
+      description: Invalid request body
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    StatusResponse:
+      type: object
+      properties:
+        status:
+          type: string
+      required: [status]
+
+    PipelineRunResult:
+      type: object
+      properties:
+        RunID:
+          type: string
+        ProjectID:
+          type: string
+        Name:
+          type: string
+        WorkflowID:
+          type: string
+        AlreadyExists:
+          type: boolean
+        Status:
+          type: string
+        ForkFromRunID:
+          type: string
+        ForkAfterStepID:
+          type: string
+        SkippedSteps:
+          type: integer
+
+    CancelPipelineResult:
+      type: object
+      properties:
+        RunID:
+          type: string
+        Reason:
+          type: string
+        WorkflowStatus:
+          type: string
+
+    # --- Request bodies ---
+
+    CreateProjectRequest:
+      type: object
+      required: [name, repository_path]
+      properties:
+        name:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          maxLength: 1000
+        repository_path:
+          type: string
+          description: Absolute path to the git repository
+
+    CreateTaskRequest:
+      type: object
+      required: [title]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        base_commit_sha:
+          type: string
+          description: Commit SHA to branch from (defaults to HEAD)
+        agent_config:
+          $ref: "#/components/schemas/AgentConfigInput"
+
+    StartPipelineRequest:
+      type: object
+      required: [name, steps]
+      properties:
+        name:
+          type: string
+        steps:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepInput"
+        base_commit_sha:
+          type: string
+        fork_from_run_id:
+          type: string
+          description: Explicitly fork from a previous run
+        fork_after_step_id:
+          type: string
+          description: Fork after this step (reuse prior steps)
+        no_auto_fork:
+          type: boolean
+          default: false
+
+    CancelPipelineRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+
+    StepInput:
+      type: object
+      required: [step_id, name]
+      properties:
+        step_id:
+          type: string
+        name:
+          type: string
+        agent_config:
+          $ref: "#/components/schemas/AgentConfigInput"
+
+    AgentConfigInput:
+      type: object
+      properties:
+        tool_name:
+          type: string
+          description: "Agent tool: \"claude\", \"test\", etc."
+        tool_version:
+          type: string
+        prompt_template:
+          type: string
+          description: Template with {{.variable}} placeholders
+        variables:
+          type: object
+          additionalProperties:
+            type: string
+        tool_options:
+          type: object
+          additionalProperties: true
+        flag_format:
+          type: string
+          enum: [space, equals]
+
+    # --- Response payloads (event types returned by GET endpoints) ---
+    # These schemas match the GORM models in internal/orchestrator/models/
+
+    Metadata:
+      type: object
+      description: Common fields for all protocol messages (commands and events)
+      properties:
+        task_id:
+          type: string
+          description: Correlation ID for task-related operations
+        idempotency_key:
+          type: string
+          description: Used for event deduplication on workflow retries
+        version:
+          type: string
+          description: Protocol version (e.g. "v1.0.0")
+
+    # --- models.Project (gorm_models.go) ---
+    Project:
+      type: object
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        repository_path:
+          type: string
+        last_updated_at:
+          type: string
+          format: date-time
+        agent_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        tasks:
+          type: array
+          items:
+            $ref: "#/components/schemas/Task"
+          description: Included when preloaded by the query (optional)
+
+    # --- models.Task (gorm_models.go) ---
+    # Status is a Go int iota: 0=pending, 1=in_progress, 2=completed, 3=failed
+    # JSON serializes as integer.
+    Task:
+      type: object
+      properties:
+        id:
+          type: string
+        title:
+          type: string
+        description:
+          type: string
+        status:
+          type: integer
+          description: "0=pending, 1=in_progress, 2=completed, 3=failed"
+          enum: [0, 1, 2, 3]
+        project_id:
+          type: string
+        exec_history:
+          type: array
+          items:
+            type: string
+          description: JSON array of execution history entries
+        last_updated_at:
+          type: string
+          format: date-time
+        agent_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        task_file_path:
+          type: string
+        branch_name:
+          type: string
+        git_diff:
+          type: string
+
+    # --- protocol.CommitInfo (events.go) ---
+    CommitInfo:
+      type: object
+      properties:
+        Hash:
+          type: string
+        Message:
+          type: string
+        Author:
+          type: string
+        Parents:
+          type: array
+          items:
+            type: string
+
+    # --- models.AIActivityRecord (gorm_models.go) ---
+    AIActivityRecord:
+      type: object
+      properties:
+        event_id:
+          type: string
+          description: Primary key (unique per event)
+        session_id:
+          type: string
+        task_id:
+          type: string
+        run_id:
+          type: string
+          description: Pipeline run ID for aggregating all steps
+        message_uuid:
+          type: string
+        parent_uuid:
+          type: string
+        request_id:
+          type: string
+          description: Groups streaming chunks
+        event_type:
+          type: string
+          description: "AI event classification"
+          enum:
+            - session_start
+            - session_end
+            - tool_use
+            - tool_result
+            - tool_blocked
+            - thinking
+            - ai_output
+            - streaming
+        is_human_input:
+          type: boolean
+          nullable: true
+        timestamp:
+          type: string
+          format: date-time
+        model:
+          type: string
+        stop_reason:
+          type: string
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cache_read_tokens:
+          type: integer
+        cache_create_tokens:
+          type: integer
+        context_tokens:
+          type: integer
+          description: Input tokens represent context size
+        context_depth:
+          type: integer
+          description: Depth in parent chain
+        tool_name:
+          type: string
+        tool_input_summary:
+          type: string
+          description: Truncated human-readable summary
+        tool_success:
+          type: boolean
+          nullable: true
+        tool_error:
+          type: string
+        file_path:
+          type: string
+          description: Extracted path for file operations
+        content_preview:
+          type: string
+          description: First 500 chars of content
+        content_length:
+          type: integer
+        raw_payload:
+          type: string
+          description: Full JSON payload as string
+        created_at:
+          type: string
+          format: date-time
+
+    # --- models.PipelineRun (pipeline.go) ---
+    # Status is a Go int iota: 0=pending, 1=running, 2=completed, 3=failed
+    PipelineRun:
+      type: object
+      properties:
+        id:
+          type: string
+        pipeline_id:
+          type: string
+        project_id:
+          type: string
+        name:
+          type: string
+        status:
+          type: integer
+          description: "0=pending, 1=running, 2=completed, 3=failed"
+          enum: [0, 1, 2, 3]
+        parent_run_id:
+          type: string
+          description: Set if this run was forked from another
+        fork_after_step_id:
+          type: string
+        start_commit_sha:
+          type: string
+        branch_name:
+          type: string
+        base_commit_sha:
+          type: string
+          description: Original base before any steps
+        head_commit_sha:
+          type: string
+          description: Final commit after all steps
+        prompt_prefix:
+          type: string
+        prompt_suffix:
+          type: string
+        identity_hash:
+          type: string
+          description: Hash of all inputs affecting output (idempotency)
+        worktree_path:
+          type: string
+        container_id:
+          type: string
+        temporal_workflow_id:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        error_message:
+          type: string
+        step_results:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepResult"
+          description: Included when preloaded (optional)
+
+    # --- models.StepResult (pipeline.go) ---
+    # Status is a Go int iota: 0=pending, 1=running, 2=completed, 3=failed, 4=skipped
+    StepResult:
+      type: object
+      properties:
+        id:
+          type: string
+        pipeline_run_id:
+          type: string
+        step_id:
+          type: string
+          description: Matches StepDefinition.StepID
+        step_index:
+          type: integer
+          description: Order of execution (0, 1, 2...)
+        status:
+          type: integer
+          description: "0=pending, 1=running, 2=completed, 3=failed, 4=skipped"
+          enum: [0, 1, 2, 3, 4]
+        commit_sha:
+          type: string
+        commit_message:
+          type: string
+        git_diff:
+          type: string
+        files_changed:
+          type: integer
+        insertions:
+          type: integer
+        deletions:
+          type: integer
+        input_tokens:
+          type: integer
+        output_tokens:
+          type: integer
+        cache_read_tokens:
+          type: integer
+        cache_create_tokens:
+          type: integer
+        agent_output:
+          type: string
+        duration:
+          type: integer
+          description: Duration in nanoseconds
+        error_message:
+          type: string
+        definition_hash:
+          type: string
+          description: Hash of step definition for fork comparison
+        created_at:
+          type: string
+          format: date-time
+        started_at:
+          type: string
+          format: date-time
+          nullable: true
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    # --- Event envelopes ---
+
+    ProjectsLoadedEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        Projects:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Project"
+
+    TasksLoadedEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        ProjectID:
+          type: string
+        ProjectName:
+          type: string
+        RepositoryPath:
+          type: string
+        Tasks:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/Task"
+
+    CommitsLoadedEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        ProjectID:
+          type: string
+        RepositoryPath:
+          type: string
+        Commits:
+          type: array
+          items:
+            $ref: "#/components/schemas/CommitInfo"
+
+    AIActivityBatchEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        TaskID:
+          type: string
+        ProjectID:
+          type: string
+        Activities:
+          type: array
+          items:
+            $ref: "#/components/schemas/AIActivityRecord"
+
+    ProjectCreatedEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        Project:
+          $ref: "#/components/schemas/Project"
+
+    PipelineRunsLoadedEvent:
+      type: object
+      properties:
+        Metadata:
+          $ref: "#/components/schemas/Metadata"
+        ProjectID:
+          type: string
+        ProjectName:
+          type: string
+        RepositoryPath:
+          type: string
+        Runs:
+          type: object
+          additionalProperties:
+            $ref: "#/components/schemas/PipelineRun"
+
+    # --- WebSocket messages ---
+
+    WebSocketClientMessage:
+      type: object
+      required: [type, filters]
+      properties:
+        type:
+          type: string
+          enum: [subscribe, unsubscribe]
+        filters:
+          type: object
+          properties:
+            project_id:
+              type: string
+            task_id:
+              type: string
+
+    WebSocketServerMessage:
+      type: object
+      required: [type]
+      properties:
+        type:
+          type: string
+          enum: [event, error]
+        event_type:
+          type: string
+          description: Go type name (e.g. "protocol.TaskLifecycleEvent")
+        payload:
+          type: object
+          description: The full event object
+        message:
+          type: string
+          description: Error message (when type is "error")
+
+    # --- Shared ---
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+        context:
+          type: string

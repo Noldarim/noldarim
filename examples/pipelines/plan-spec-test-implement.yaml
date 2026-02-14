@@ -1,0 +1,53 @@
+name: "Plan Spec Test Write Run tests"
+description: "Implement new thing with many sensible steps"
+
+variables:
+  task_name: "Example task"
+  language: "go"
+
+steps:
+  - id: Plan
+    name: "Create implementation plan"
+    prompt: |
+      Create a detailed implementation plan for {{.task_name}}.
+      Analyze the existing {{.language}} codebase structure and identify where changes need to be made.
+      Outline the approach, key components, and any dependencies.
+
+  - id: Spec
+    name: "Write specifications"
+    prompt: |
+      Read the previous step output: docs/ai_history/runs/{{.RunID}}/step-Plan.md
+
+      Based on that plan, write detailed specifications for {{.task_name}}.
+      Define the interfaces, data structures, and expected behavior.
+      Include input/output contracts and error handling requirements.
+
+  - id: Test
+    name: "Write tests based on specification"
+    prompt: |
+      Read the previous step outputs:
+      - Plan: docs/ai_history/runs/{{.RunID}}/step-Plan.md
+      - Spec: docs/ai_history/runs/{{.RunID}}/step-Spec.md
+
+      Based on the specification, write comprehensive tests for {{.task_name}}.
+      Cover edge cases and error scenarios.
+      Follow the existing test patterns in the {{.language}} codebase.
+      The tests should initially fail since the implementation doesn't exist yet.
+
+  - id: Write
+    name: "Implement code to pass the tests"
+    prompt: |
+      Read the previous step outputs:
+      - Spec: docs/ai_history/runs/{{.RunID}}/step-Spec.md
+      - Test: docs/ai_history/runs/{{.RunID}}/step-Test.md
+
+      Implement {{.task_name}} according to the specification.
+      Follow the existing code patterns and conventions in this {{.language}} codebase.
+      Make sure the implementation passes all the tests written in the Test step.
+
+  - id: Run_tests
+    name: "Run tests and verify implementation"
+    prompt: |
+      Run the test suite for {{.task_name}} and report the results.
+      If any tests fail, analyze the failures and fix the implementation.
+      Ensure all tests pass before completing this step.

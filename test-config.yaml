@@ -1,0 +1,123 @@
+# Noldarim E2E Test Configuration File
+#
+# Configuration for end-to-end temporal integration tests
+# This mirrors production config but with test-specific overrides
+
+# Database configuration - use in-memory for test isolation
+database:
+  driver: sqlite
+  database: noldarim.db
+
+# Logging configuration - debug level for tests with separate log file
+log:
+  level: DEBUG
+  format: console
+  
+  output:
+    - type: file
+      enabled: true
+      path: ./test-logs/e2e-test.log
+      rotate:
+        max_size_mb: 100
+        max_backups: 3
+        max_age_days: 7
+        compress: true
+    - type: console
+      enabled: false  # Keep disabled to prevent TUI corruption during tests
+  
+  # Per-package log levels for detailed debugging
+  levels:
+    orchestrator: DEBUG
+    temporal: DEBUG
+    database: DEBUG
+    git: DEBUG
+    container: DEBUG
+  
+  context:
+    include_caller: true
+    include_timestamp: true
+    include_level: true
+    include_stack_trace: ERROR
+
+# Temporal configuration - separate test queue to avoid conflicts
+temporal:
+  host_port: localhost:7233
+  namespace: default
+  task_queue: noldarim-e2e-test-queue  # Dedicated test queue
+  
+  worker:
+    max_concurrent_activities: 10
+    max_concurrent_workflows: 10
+    activities_per_second: 1000
+  
+  activity:
+    start_to_close_timeout: 30s
+    schedule_to_close_timeout: 5m
+    heartbeat_timeout: 5s
+    retry_policy:
+      initial_interval: 1s
+      backoff_coefficient: 2.0
+      maximum_interval: 1m
+      maximum_attempts: 3
+  
+  workflow:
+    workflow_execution_timeout: 10m  # Shorter timeout for tests
+    workflow_run_timeout: 10m
+    workflow_task_timeout: 10s
+
+# Container configuration
+container:
+  default_image: noldarim-agent:latest
+  workspace_dir: /workspace
+  docker_host: unix://${HOME}/.docker/run/docker.sock
+  
+  # Test containers don't need network isolation
+  # network_mode: bridge  # Default mode for tests
+  
+  volumes: []
+  environment: {}
+  
+  resource_limits:
+    cpu_shares: 512       # Lower limits for test containers
+    memory_mb: 1024       # 1GB should be sufficient for tests
+    disk_size_mb: 5120    # 5GB disk limit
+  
+  timeouts:
+    stop_timeout: 5s              # Faster cleanup for tests
+    task_duplicate_window: 1m     # Shorter window for tests
+
+# Git configuration - separate test worktree directory
+git:
+  worktree_base_path: ./test-worktrees
+  default_branch: main
+  create_git_repo_for_project_if_not_exist: true
+
+# Server configuration - not used in tests but needed for config completeness
+server:
+  host: 127.0.0.1
+  port: 8081  # Different port to avoid conflicts
+
+# Claude configuration - test config path
+claude:
+  claude_json_host_path: ./test-claude-config.json  # Test-specific Claude config
+
+# AI Agent configuration for tests
+agent:
+  default_tool: claude
+  default_version: "4.5"
+  flag_format: space
+  prompt_template: |
+    Please complete the task described below.
+
+    Task: {{.title}}
+    Description: {{.description}}
+
+    The task details have been written to: {{.task_file}}
+
+    Please read the task file for complete information and execute the requested work in the workspace directory.
+  variables:
+    title: ""
+    description: ""
+    task_file: ""
+  tool_options:
+    model: claude-sonnet-4-5

@@ -1,0 +1,27 @@
+name: "Feature Implementation"
+description: "Implement a new feature with tests and documentation"
+
+variables:
+  feature_name: "example-feature"
+  language: "go"
+
+steps:
+  - id: implement
+    name: "Implement feature"
+    prompt: |
+      Implement the {{.feature_name}} feature.
+      Follow the existing code patterns and conventions in this {{.language}} codebase.
+      Make sure the implementation is clean and well-structured.
+
+  - id: test
+    name: "Write tests"
+    prompt: |
+      Write comprehensive unit tests for the {{.feature_name}} feature you just implemented.
+      Cover edge cases and error scenarios.
+      Follow the existing test patterns in the codebase.
+
+  - id: docs
+    name: "Update documentation"
+    prompt: |
+      Update the relevant documentation to describe the {{.feature_name}} feature.
+      Include usage examples if appropriate.

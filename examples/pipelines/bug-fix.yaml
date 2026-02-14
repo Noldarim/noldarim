@@ -1,0 +1,26 @@
+name: "Bug Fix"
+description: "Investigate and fix a bug with regression tests"
+
+variables:
+  bug_description: "describe the bug here"
+
+steps:
+  - id: investigate
+    name: "Investigate bug"
+    prompt: |
+      Investigate this bug: {{.bug_description}}
+
+      Find the root cause and identify the files that need to be modified.
+      Do not make changes yet - just analyze and understand the issue.
+
+  - id: fix
+    name: "Implement fix"
+    prompt: |
+      Now implement the fix for the bug you just investigated.
+      Make minimal, focused changes to address the root cause.
+
+  - id: regression-test
+    name: "Add regression test"
+    prompt: |
+      Add a regression test that would have caught this bug.
+      The test should fail without your fix and pass with it.

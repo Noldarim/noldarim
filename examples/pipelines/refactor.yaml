@@ -1,0 +1,41 @@
+name: "Code Refactor"
+description: "Refactor code in multiple passes"
+
+agent:
+  model: "opus"  # Use stronger model for complex refactoring
+
+variables:
+  target: "specify what to refactor"
+
+steps:
+  - id: analyze
+    name: "Analyze current code"
+    prompt: |
+      Analyze the code related to: {{.target}}
+
+      Identify:
+      - Code smells and areas for improvement
+      - Potential abstractions that could be extracted
+      - Duplicated logic that could be consolidated
+
+      Do not make changes yet.
+
+  - id: refactor
+    name: "Refactor code"
+    prompt: |
+      Based on your analysis, refactor the code.
+
+      Focus on:
+      - Improving readability and maintainability
+      - Extracting reusable abstractions where appropriate
+      - Removing duplication
+
+      Make sure all existing tests still pass.
+
+  - id: cleanup
+    name: "Final cleanup"
+    prompt: |
+      Do a final cleanup pass:
+      - Remove any unused imports or variables
+      - Ensure consistent formatting
+      - Add comments only where the code isn't self-explanatory

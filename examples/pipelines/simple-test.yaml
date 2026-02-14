@@ -1,0 +1,11 @@
+name: "Simple Test Pipeline v1.0.0"
+description: "A simple 2-step pipeline for testing"
+
+steps:
+  - id: step1
+    name: "Create file"
+    prompt: "Create a file called hello4.txt with the content 'Hello from step 1'"
+
+  - id: step2
+    name: "Append to file"
+    prompt: "Append a new line 'Hello from step 2' to the hello4.txt file"
