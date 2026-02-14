@@ -1,24 +1,68 @@
 # Noldarim
 
+## Purpose
+
+Noldarim is a workflow orchestrator for AI-assisted software tasks.  
+It runs tasks as pipelines with Temporal orchestration, Git/worktree management, and Docker-based agent execution.
+
+## Use It (Current State)
+
+Primary runtime is **server-first** (`cmd/server`).
+
+1. Start Temporal:
+   ```bash
+   temporal server start-dev
+   ```
+2. Build the agent image:
+   ```bash
+   make build-agent
+   ```
+3. Run the API server:
+   ```bash
+   make run
+   ```
+4. Use the API (default: `http://127.0.0.1:8080`):
+   ```bash
+   curl -X POST http://127.0.0.1:8080/api/v1/projects \
+     -H "Content-Type: application/json" \
+     -d '{"name":"Demo","description":"Local repo","repository_path":"/absolute/path/to/repo"}'
+
+   curl http://127.0.0.1:8080/api/v1/projects
+   ```
+
+WebSocket events are available at `ws://127.0.0.1:8080/ws`.
+
+## Run for Development
+
+```bash
+go mod download
+make build-agent
+make run
+```
+
+Useful commands:
+
+```bash
+make test
+make build-server
+make run-tui   # legacy UI path
+```
+
+## Required Dependencies
+
+- Go `1.24.4+`
+- Docker
+- Temporal server
+- Git
+- Make
+- Claude credentials/config on host (`~/.claude.json`) for default agent flow
+
+## Architecture
+
+- [architecture.md](docs/architecture.md)
+- [components-hierarchy.md](components-hierarchy.md)
+
 ## License
 
-Noldarim is dual-licensed:
-
-- **Community edition** -- licensed under the
-  [GNU Affero General Public License v3.0 or later](LICENSE)
-  (`AGPL-3.0-or-later`). You are free to use, modify, and distribute
-  the software under the terms of the AGPL. If you run a modified
-  version on a server that users interact with over a network, you
-  must make the source code of your modifications available.
-
-- **Commercial license** -- a separate commercial license is available
-  for organizations that need to use Noldarim in closed-source or
-  proprietary products without the AGPL obligations. Contact
-  **contact@noldarim.com** for details.
-
-### Contributing
-
-Contributions are welcome. By submitting a pull request you agree to
-the [Contributor License Agreement](CLA.md), which allows Noldarim to
-distribute your contributions under both the AGPL and commercial
-licenses.
+- Community: [AGPL-3.0-or-later](LICENSE)
+- Commercial license: contact `contact@noldarim.com`

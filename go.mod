@@ -10,7 +10,7 @@ require (
 	github.com/docker/docker v28.3.2+incompatible
 	github.com/docker/go-connections v0.5.0
 	github.com/go-chi/chi/v5 v5.2.4
-	github.com/go-viper/mapstructure/v2 v2.2.1
+	github.com/go-viper/mapstructure/v2 v2.4.0
 	github.com/google/uuid v1.6.0
 	github.com/gorilla/websocket v1.5.3
 	github.com/rs/zerolog v1.34.0
