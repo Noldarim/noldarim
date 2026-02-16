@@ -193,10 +193,10 @@ func (o *Orchestrator) handleLoadProjects(ctx context.Context, metadata protocol
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load projects", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load projects", Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.ProjectsLoadedEvent{Metadata: metadata, Projects: projects}
+	o.sendEvent(protocol.ProjectsLoadedEvent{Metadata: metadata, Projects: projects})
 }
 
 func (o *Orchestrator) handleLoadTasks(ctx context.Context, metadata protocol.Metadata, projectID string) {
@@ -205,7 +205,7 @@ func (o *Orchestrator) handleLoadTasks(ctx context.Context, metadata protocol.Me
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()})
 		return
 	}
 
@@ -214,16 +214,16 @@ func (o *Orchestrator) handleLoadTasks(ctx context.Context, metadata protocol.Me
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load tasks for project " + projectID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load tasks for project " + projectID, Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.TasksLoadedEvent{
+	o.sendEvent(protocol.TasksLoadedEvent{
 		Metadata:       metadata,
 		ProjectID:      projectID,
 		ProjectName:    project.Name,
 		RepositoryPath: project.RepositoryPath,
 		Tasks:          tasks,
-	}
+	})
 }
 
 func (o *Orchestrator) handleLoadPipelineRuns(ctx context.Context, metadata protocol.Metadata, projectID string) {
@@ -232,7 +232,7 @@ func (o *Orchestrator) handleLoadPipelineRuns(ctx context.Context, metadata prot
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()})
 		return
 	}
 
@@ -241,7 +241,7 @@ func (o *Orchestrator) handleLoadPipelineRuns(ctx context.Context, metadata prot
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load pipeline runs for project " + projectID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load pipeline runs for project " + projectID, Context: err.Error()})
 		return
 	}
 
@@ -250,13 +250,13 @@ func (o *Orchestrator) handleLoadPipelineRuns(ctx context.Context, metadata prot
 		runsMap[run.ID] = run
 	}
 
-	o.eventChan <- protocol.PipelineRunsLoadedEvent{
+	o.sendEvent(protocol.PipelineRunsLoadedEvent{
 		Metadata:       metadata,
 		ProjectID:      projectID,
 		ProjectName:    project.Name,
 		RepositoryPath: project.RepositoryPath,
 		Runs:           runsMap,
-	}
+	})
 }
 
 func (o *Orchestrator) handleLoadAIActivity(ctx context.Context, metadata protocol.Metadata, projectID, taskID string) {
@@ -265,10 +265,10 @@ func (o *Orchestrator) handleLoadAIActivity(ctx context.Context, metadata protoc
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load AI activity events for task " + taskID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load AI activity events for task " + taskID, Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.AIActivityBatchEvent{Metadata: metadata, TaskID: taskID, ProjectID: projectID, Activities: events}
+	o.sendEvent(protocol.AIActivityBatchEvent{Metadata: metadata, TaskID: taskID, ProjectID: projectID, Activities: events})
 }
 
 func (o *Orchestrator) handleLoadCommits(ctx context.Context, metadata protocol.Metadata, projectID string, limit int) {
@@ -277,18 +277,18 @@ func (o *Orchestrator) handleLoadCommits(ctx context.Context, metadata protocol.
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load project details for " + projectID, Context: err.Error()})
 		return
 	}
 
 	if project.RepositoryPath == "" {
-		o.eventChan <- protocol.CommitsLoadedEvent{Metadata: metadata, ProjectID: projectID, RepositoryPath: "", Commits: []protocol.CommitInfo{}}
+		o.sendEvent(protocol.CommitsLoadedEvent{Metadata: metadata, ProjectID: projectID, RepositoryPath: "", Commits: []protocol.CommitInfo{}})
 		return
 	}
 
 	gitServiceHandle, err := o.gitServiceManager.GetService(project.RepositoryPath)
 	if err != nil {
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to access git repository", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to access git repository", Context: err.Error()})
 		return
 	}
 	defer gitServiceHandle.Release()
@@ -298,7 +298,7 @@ func (o *Orchestrator) handleLoadCommits(ctx context.Context, metadata protocol.
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load commit history", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to load commit history", Context: err.Error()})
 		return
 	}
 
@@ -307,7 +307,7 @@ func (o *Orchestrator) handleLoadCommits(ctx context.Context, metadata protocol.
 		commitInfos[i] = protocol.CommitInfo{Hash: commit.Hash, Message: commit.Message, Author: commit.Author, Parents: commit.Parents}
 	}
 
-	o.eventChan <- protocol.CommitsLoadedEvent{Metadata: metadata, ProjectID: projectID, RepositoryPath: project.RepositoryPath, Commits: commitInfos}
+	o.sendEvent(protocol.CommitsLoadedEvent{Metadata: metadata, ProjectID: projectID, RepositoryPath: project.RepositoryPath, Commits: commitInfos})
 }
 
 // --- Mutation handlers (thin wrappers around PipelineService) ---
@@ -318,10 +318,10 @@ func (o *Orchestrator) handleCreateProject(ctx context.Context, metadata protoco
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to create project", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to create project", Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.ProjectCreatedEvent{Metadata: metadata, Project: project}
+	o.sendEvent(protocol.ProjectCreatedEvent{Metadata: metadata, Project: project})
 }
 
 func (o *Orchestrator) handleToggleTask(ctx context.Context, metadata protocol.Metadata, projectID, taskID string) {
@@ -330,12 +330,12 @@ func (o *Orchestrator) handleToggleTask(ctx context.Context, metadata protocol.M
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to update task status", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to update task status", Context: err.Error()})
 		return
 	}
 	event := protocol.NewTaskStatusUpdatedEvent(projectID, taskID, newStatus)
 	event.Metadata = metadata
-	o.eventChan <- event
+	o.sendEvent(event)
 }
 
 func (o *Orchestrator) handleDeleteTask(ctx context.Context, metadata protocol.Metadata, projectID, taskID string) {
@@ -343,7 +343,7 @@ func (o *Orchestrator) handleDeleteTask(ctx context.Context, metadata protocol.M
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: metadata, Message: "Failed to delete task", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: metadata, Message: "Failed to delete task", Context: err.Error()})
 		return
 	}
 	// Reload tasks to reflect the deletion
@@ -365,10 +365,10 @@ func (o *Orchestrator) handleCreateTask(ctx context.Context, cmd protocol.Create
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to create task", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to create task", Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.PipelineRunStartedEvent{
+	o.sendEvent(protocol.PipelineRunStartedEvent{
 		Metadata:      cmd.Metadata,
 		RunID:         result.RunID,
 		ProjectID:     result.ProjectID,
@@ -376,7 +376,7 @@ func (o *Orchestrator) handleCreateTask(ctx context.Context, cmd protocol.Create
 		WorkflowID:    result.WorkflowID,
 		AlreadyExists: result.AlreadyExists,
 		Status:        protocol.PipelineStatus(result.Status),
-	}
+	})
 }
 
 func (o *Orchestrator) handleStartPipeline(ctx context.Context, cmd protocol.StartPipelineCommand) {
@@ -396,10 +396,10 @@ func (o *Orchestrator) handleStartPipeline(ctx context.Context, cmd protocol.Sta
 		if ctx.Err() != nil {
 			return
 		}
-		o.eventChan <- protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to start pipeline", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to start pipeline", Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.PipelineRunStartedEvent{
+	o.sendEvent(protocol.PipelineRunStartedEvent{
 		Metadata:        cmd.Metadata,
 		RunID:           result.RunID,
 		ProjectID:       result.ProjectID,
@@ -410,20 +410,30 @@ func (o *Orchestrator) handleStartPipeline(ctx context.Context, cmd protocol.Sta
 		ForkFromRunID:   result.ForkFromRunID,
 		ForkAfterStepID: result.ForkAfterStepID,
 		SkippedSteps:    result.SkippedSteps,
-	}
+	})
 }
 
 func (o *Orchestrator) handleCancelPipeline(cmd protocol.CancelPipelineCommand) {
 	result, err := o.pipelineService.CancelPipeline(context.Background(), cmd.RunID, cmd.Reason)
 	if err != nil {
-		o.eventChan <- protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to cancel pipeline", Context: err.Error()}
+		o.sendEvent(protocol.ErrorEvent{Metadata: cmd.Metadata, Message: "Failed to cancel pipeline", Context: err.Error()})
 		return
 	}
-	o.eventChan <- protocol.PipelineCancelledEvent{
+	o.sendEvent(protocol.PipelineCancelledEvent{
 		Metadata:       cmd.Metadata,
 		RunID:          result.RunID,
 		Reason:         result.Reason,
 		WorkflowStatus: result.WorkflowStatus,
+	})
+}
+
+// sendEvent sends an event to the event channel without blocking.
+// If the channel is full, the event is dropped with a warning log.
+func (o *Orchestrator) sendEvent(event protocol.Event) {
+	select {
+	case o.eventChan <- event:
+	default:
+		getLog().Warn().Str("event_type", fmt.Sprintf("%T", event)).Msg("Dropping event: eventChan full")
 	}
 }
 

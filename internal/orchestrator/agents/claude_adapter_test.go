@@ -55,11 +55,21 @@ func TestClaudeAdapter_RenderPrompt(t *testing.T) {
 			wantErr: false,
 		},
 		{
-			name:      "invalid template syntax",
+			name:      "unclosed braces are left as-is",
 			template:  "Analyze {{.file",
 			variables: map[string]string{},
-			want:      "",
-			wantErr:   true,
+			want:      "Analyze {{.file",
+			wantErr:   false,
+		},
+		{
+			name:     "spaced variable syntax",
+			template: "Analyze {{ .file }} for {{ .issue_type }}",
+			variables: map[string]string{
+				"file":       "main.go",
+				"issue_type": "memory",
+			},
+			want:    "Analyze main.go for memory",
+			wantErr: false,
 		},
 	}
 

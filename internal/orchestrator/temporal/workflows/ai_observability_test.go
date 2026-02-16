@@ -374,6 +374,104 @@ func TestAIObservabilityWorkflow_WorkflowName(t *testing.T) {
 func TestAIObservabilityWorkflow_SignalNames(t *testing.T) {
 	// Verify signal name constants are correct
 	assert.Equal(t, "raw-transcript-line", RawTranscriptLineSignal)
+	assert.Equal(t, "step-change", StepChangeSignal)
+}
+
+func TestAIObservabilityWorkflow_StepChangeSignal_TagsEvents(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+	registerAIObsActivities(env)
+
+	input := types.AIObservabilityWorkflowInput{
+		TaskID:                "task-step-signal",
+		RunID:                 "run-step-signal",
+		ProjectID:             "project-step-signal",
+		TranscriptDir:         "/home/noldarim/.claude/projects/-workspace",
+		ProcessTaskWorkflowID: "process-task-step-signal",
+		OrchestratorTaskQueue: "noldarim-task-queue",
+	}
+
+	// Capture StepID values passed to SaveRawEventActivity and ParseEventActivity
+	var saveStepIDs []string
+	var parseStepIDs []string
+
+	// Mock WatchTranscriptActivity - completes after signals are processed
+	env.OnActivity("WatchTranscriptActivity", mock.Anything, mock.Anything).Return(
+		&types.WatchTranscriptActivityOutput{Success: true}, nil,
+	).After(200 * time.Millisecond)
+
+	// Mock SaveRawEventActivity - capture StepID from each call
+	env.OnActivity("SaveRawEventActivity", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		saveInput := args.Get(1).(types.SaveRawEventInput)
+		saveStepIDs = append(saveStepIDs, saveInput.StepID)
+	}).Return(&types.SaveRawEventOutput{
+		EventID: "test-event-id",
+		Success: true,
+	}, nil)
+
+	// Mock ParseEventActivity - capture StepID from each call
+	env.OnActivity("ParseEventActivity", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		parseInput := args.Get(1).(types.ParseEventInput)
+		parseStepIDs = append(parseStepIDs, parseInput.StepID)
+	}).Return(&types.ParseEventOutput{
+		Events:  []*models.AIActivityRecord{{EventID: "test-event-id", EventType: models.AIEventToolUse}},
+		Success: true,
+	}, nil)
+
+	env.OnActivity("UpdateParsedEventActivity", mock.Anything, mock.Anything).Return(nil)
+	env.OnActivity("PublishAIActivityEventActivity", mock.Anything, mock.Anything).Return(nil)
+
+	makeRawEvent := func() types.RawTranscriptEvent {
+		return types.RawTranscriptEvent{
+			Source:    "claude",
+			RawLine:   json.RawMessage(`{"type":"tool_use","name":"Read"}`),
+			Timestamp: time.Now(),
+			TaskID:    "task-step-signal",
+			ProjectID: "project-step-signal",
+		}
+	}
+
+	// Simulate PipelineWorkflow signaling step changes interleaved with transcript events.
+	// Each batch is in a separate callback so the workflow fully processes one step's
+	// signals before the next step's arrive (avoids the step-change goroutine racing
+	// ahead and consuming all step signals before raw events are processed).
+
+	// Batch 1: step-a with 2 events
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(StepChangeSignal, "step-a")
+		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
+		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
+	}, 10*time.Millisecond)
+
+	// Batch 2: step-b with 1 event (arrives after batch 1 activities complete)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(StepChangeSignal, "step-b")
+		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
+	}, 50*time.Millisecond)
+
+	// Batch 3: clear step context (like pipeline does after loop ends)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(StepChangeSignal, "")
+	}, 80*time.Millisecond)
+
+	env.ExecuteWorkflow(AIObservabilityWorkflow, input)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+
+	var result types.AIObservabilityWorkflowOutput
+	err := env.GetWorkflowResult(&result)
+	assert.NoError(t, err)
+	assert.True(t, result.Success)
+	assert.Equal(t, 3, result.EventsCount)
+
+	// Verify step IDs were correctly propagated to activities
+	assert.Equal(t, []string{"step-a", "step-a", "step-b"}, saveStepIDs,
+		"SaveRawEventActivity should receive the correct StepID for each event")
+	assert.Equal(t, []string{"step-a", "step-a", "step-b"}, parseStepIDs,
+		"ParseEventActivity should receive the correct StepID for each event")
+
+	env.AssertExpectations(t)
 }
 
 func TestAIObservabilityWorkflow_SaveEventFailure_ContinuesProcessing(t *testing.T) {

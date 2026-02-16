@@ -22,9 +22,13 @@ type Props = {
 };
 
 export function PipelineForm({ templates, disabled, onStart }: Props) {
-  const nextKeyRef = useRef(1);
   function formKey(): string {
-    return `fk-${nextKeyRef.current++}`;
+    return crypto.randomUUID();
+  }
+
+  const stepCounter = useRef(1);
+  function nextStepId(): string {
+    return `step-${++stepCounter.current}`;
   }
 
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
@@ -87,13 +91,11 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
   }
 
   function addStep() {
-    setSteps((prev) => {
-      const n = prev.length + 1;
-      return [
-        ...prev,
-        { id: `step-${n}`, name: `Step ${n}`, prompt: "", _key: formKey() }
-      ];
-    });
+    const id = nextStepId();
+    setSteps((prev) => [
+      ...prev,
+      { id, name: `Step ${prev.length + 1}`, prompt: "", _key: formKey() }
+    ]);
   }
 
   function updateVariable(index: number, patch: Partial<VariableRow>) {

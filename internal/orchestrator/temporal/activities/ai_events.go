@@ -66,6 +66,7 @@ func (a *AIEventActivities) SaveRawEventActivity(
 		EventID:    eventID,
 		TaskID:     input.TaskID,
 		RunID:      input.RunID,
+		StepID:     input.StepID,
 		Timestamp:  input.Timestamp,
 		RawPayload: string(input.RawPayload),
 		// EventType intentionally empty - set during parsing
@@ -166,7 +167,7 @@ func (a *AIEventActivities) ParseEventActivity(
 		}
 		// Override the EventID from parsed with our workflow-assigned ID
 		parsed.EventID = eventID
-		events = append(events, models.NewAIActivityRecordFromParsed(parsed, input.TaskID, input.RunID))
+		events = append(events, models.NewAIActivityRecordFromParsed(parsed, input.TaskID, input.RunID, input.StepID))
 	}
 
 	logger.Debug("Events parsed successfully",

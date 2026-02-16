@@ -157,13 +157,14 @@ func TestNewAIActivityRecordFromParsed(t *testing.T) {
 		RawPayload:        json.RawMessage(`{"type":"tool_use"}`),
 	}
 
-	record := NewAIActivityRecordFromParsed(parsed, "task-789", "abc123def45678ab")
+	record := NewAIActivityRecordFromParsed(parsed, "task-789", "abc123def45678ab", "step-analyze")
 
 	// Identity
 	assert.Equal(t, "evt-parsed-123", record.EventID)
 	assert.Equal(t, "session-abc", record.SessionID)
 	assert.Equal(t, "task-789", record.TaskID)
 	assert.Equal(t, "abc123def45678ab", record.RunID)
+	assert.Equal(t, "step-analyze", record.StepID)
 
 	// Conversation structure
 	assert.Equal(t, "msg-uuid-xyz", record.MessageUUID)
@@ -208,7 +209,7 @@ func TestNewAIActivityRecordFromParsed_NilToolSuccess(t *testing.T) {
 		ToolSuccess:  nil, // Intentionally nil
 	}
 
-	record := NewAIActivityRecordFromParsed(parsed, "task-123", "xyz789def01234ab")
+	record := NewAIActivityRecordFromParsed(parsed, "task-123", "xyz789def01234ab", "")
 
 	// ToolSuccess should still be nil (not dereferenced)
 	assert.Nil(t, record.ToolSuccess)

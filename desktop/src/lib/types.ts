@@ -125,6 +125,7 @@ export type AIActivityRecord = {
   event_id: string;
   task_id: string;
   run_id: string;
+  step_id?: string;
   event_type: AIEventType;
   timestamp: string;
   tool_name?: string;

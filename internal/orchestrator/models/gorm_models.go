@@ -156,7 +156,8 @@ type AIActivityRecord struct {
 	EventID   string `gorm:"primaryKey;type:text" json:"event_id"`
 	SessionID string `gorm:"type:text;index" json:"session_id"`
 	TaskID    string `gorm:"type:text;index" json:"task_id"`
-	RunID     string `gorm:"type:text;index" json:"run_id"` // Pipeline run ID for aggregating all steps
+	RunID     string `gorm:"type:text;index" json:"run_id"`  // Pipeline run ID for aggregating all steps
+	StepID    string `gorm:"type:text;index" json:"step_id"` // Pipeline step ID this event belongs to
 
 	// Conversation structure
 	MessageUUID string `gorm:"type:text" json:"message_uuid"`
@@ -237,13 +238,14 @@ func (r *AIActivityRecord) ToParsedEventFields() map[string]interface{} {
 // NewAIActivityRecordFromParsed creates a record from a ParsedEvent.
 // This is THE canonical way to convert parsed transcript events to database records.
 // taskID and runID come from workflow context since ParsedEvent doesn't include them.
-func NewAIActivityRecordFromParsed(parsed types.ParsedEvent, taskID, runID string) *AIActivityRecord {
+func NewAIActivityRecordFromParsed(parsed types.ParsedEvent, taskID, runID, stepID string) *AIActivityRecord {
 	isHuman := parsed.IsHumanInput
 	return &AIActivityRecord{
 		EventID:           parsed.EventID,
 		SessionID:         parsed.SessionID,
 		TaskID:            taskID,
 		RunID:             runID,
+		StepID:            stepID,
 		MessageUUID:       parsed.MessageUUID,
 		ParentUUID:        parsed.ParentUUID,
 		RequestID:         parsed.RequestID,

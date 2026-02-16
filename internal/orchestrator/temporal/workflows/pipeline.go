@@ -4,9 +4,8 @@
 package workflows
 
 import (
-	"bytes"
 	"fmt"
-	"text/template"
+	"strings"
 	"time"
 
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
@@ -299,6 +298,13 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 				StepName:  stepDef.Name,
 			}).Get(ctx, nil)
 
+		// Signal observability workflow with current step ID so events are tagged correctly
+		signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", StepChangeSignal, stepDef.StepID).Get(ctx, nil)
+		if signalErr != nil {
+			logger.Warn("Failed to signal step change to observability workflow",
+				"stepID", stepDef.StepID, "error", signalErr)
+		}
+
 		// Create step result record in DB
 		stepResultID := fmt.Sprintf("%s-step-%s", input.RunID, stepDef.StepID)
 		stepResult := &models.StepResult{
@@ -512,6 +518,12 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 
 	output.HeadCommitSHA = currentCommit
 
+	// Clear step context on observability workflow now that all steps are done
+	signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", StepChangeSignal, "").Get(ctx, nil)
+	if signalErr != nil {
+		logger.Warn("Failed to clear step context on observability workflow", "error", signalErr)
+	}
+
 	// =========================================================================
 	// Phase 2b: Wait for observability to finish reading final data
 	// =========================================================================
@@ -579,18 +591,19 @@ type RuntimeVars struct {
 	PreviousStepID string // Previous step ID (empty for first step)
 }
 
-// injectRuntimeVars performs second-pass template rendering with runtime variables
-// This allows prompts to reference {{.RunID}}, {{.PreviousStepID}}, etc.
-func injectRuntimeVars(promptTemplate string, vars RuntimeVars) (string, error) {
-	tmpl, err := template.New("runtime").Parse(promptTemplate)
-	if err != nil {
-		return promptTemplate, err // Return original on parse error
-	}
-
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, vars); err != nil {
-		return promptTemplate, err // Return original on execute error
-	}
-
-	return buf.String(), nil
+// injectRuntimeVars performs second-pass variable substitution with runtime variables.
+// Uses simple string replacement instead of text/template to avoid template injection
+// from user-controlled prompt content.
+func injectRuntimeVars(prompt string, vars RuntimeVars) (string, error) {
+	r := strings.NewReplacer(
+		"{{.RunID}}", vars.RunID,
+		"{{ .RunID }}", vars.RunID,
+		"{{.StepIndex}}", fmt.Sprintf("%d", vars.StepIndex),
+		"{{ .StepIndex }}", fmt.Sprintf("%d", vars.StepIndex),
+		"{{.StepID}}", vars.StepID,
+		"{{ .StepID }}", vars.StepID,
+		"{{.PreviousStepID}}", vars.PreviousStepID,
+		"{{ .PreviousStepID }}", vars.PreviousStepID,
+	)
+	return r.Replace(prompt), nil
 }

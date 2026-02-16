@@ -167,7 +167,10 @@ export default function App() {
           }
 
           if (message.event_type === "*models.AIActivityRecord" && message.payload) {
-            actions.appendActivity(message.payload as AIActivityRecord);
+            const p = message.payload as Record<string, unknown>;
+            if (typeof p.event_id === "string" && typeof p.event_type === "string") {
+              actions.appendActivity(p as unknown as AIActivityRecord);
+            }
           }
 
           scheduleHydrate(runId);

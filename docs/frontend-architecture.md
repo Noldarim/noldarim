@@ -294,27 +294,22 @@ Once a pipeline is running, two parallel update mechanisms operate:
 
 ### 6.3 Activity-to-Step Mapping
 
-Activities arrive as a flat list scoped to the entire run. The observability layer maps them to individual steps using time windows:
+Each `AIActivityRecord` carries a `step_id` field set at write time by the backend. The `PipelineWorkflow` signals the `AIObservabilityWorkflow` with the current step ID whenever a new step starts, so every persisted event is tagged with the step it belongs to.
+
+The frontend groups activities by this field directly:
 
 ```
-mapActivitiesToSteps(run, activities, now)
+mapActivitiesToSteps(run, activities)
 
- Step 1              Step 2              Step 3
- started_at ──────── started_at ──────── started_at ────── now
- │    window 1     │ │    window 2     │ │   window 3    │
- │  events here    │ │  events here    │ │  events here  │
- │  belong to      │ │  belong to      │ │  belong to    │
- │  step 1         │ │  step 2         │ │  step 3       │
- └─────────────────┘ └─────────────────┘ └───────────────┘
-
-Edge cases:
-  • Events before first step start  → assigned to first step
-  • Events after last window close  → assigned to last started step
-  • Skipped steps (status=4)        → excluded from window creation
-  • Missing timestamps              → fall back to run start or `now`
+ 1. Initialize empty arrays for each step in run.step_results
+ 2. For each activity:
+    - If event.step_id matches a known step → push to that step's array
+    - Otherwise (missing/unknown step_id)  → skip (graceful degradation)
 ```
 
 Returns `StepActivityMap`: `Record<string, AIActivityRecord[]>` keyed by step_id.
+
+Legacy records (written before `step_id` was added) will have an empty `step_id` and are excluded gracefully.
 
 ### 6.4 Observability Aggregation
 
@@ -386,7 +381,7 @@ StepResult      { step_id, step_index, status, commit_sha, git_diff,
                   input_tokens, output_tokens, error_message, ... }
 
 // Observability
-AIActivityRecord { event_id, run_id, event_type, timestamp,
+AIActivityRecord { event_id, run_id, step_id, event_type, timestamp,
                    tool_name, tool_input_summary, tool_success,
                    input_tokens, output_tokens, content_preview, ... }
 ```
@@ -569,7 +564,7 @@ No Tauri IPC commands or Rust-side business logic exists currently. The Rust sid
 | Polyfills   | `test/setup.ts`         | ResizeObserver, element dimensions |
 
 Current test coverage targets:
-- `obs-mapping.ts` — activity-to-step edge cases (time boundaries, skipped steps)
+- `obs-mapping.ts` — activity-to-step grouping by `step_id` (legacy data, skipped steps, unknown IDs)
 - `pipeline-templating.ts` — variable substitution and validation
 - `RunGraph.tsx` — node rendering and status reflection
 

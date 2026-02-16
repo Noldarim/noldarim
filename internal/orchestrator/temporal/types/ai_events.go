@@ -34,7 +34,8 @@ type RawTranscriptEvent struct {
 // This activity saves the raw event to the database before parsing.
 type SaveRawEventInput struct {
 	TaskID     string          `json:"task_id"`
-	RunID      string          `json:"run_id"` // Pipeline run ID for aggregating all steps
+	RunID      string          `json:"run_id"`  // Pipeline run ID for aggregating all steps
+	StepID     string          `json:"step_id"` // Pipeline step ID this event belongs to
 	ProjectID  string          `json:"project_id"`
 	Source     string          `json:"source"`
 	RawPayload json.RawMessage `json:"raw_payload"`
@@ -67,6 +68,9 @@ type ParseEventInput struct {
 
 	// RunID for pipeline run aggregation
 	RunID string `json:"run_id"`
+
+	// StepID for pipeline step association
+	StepID string `json:"step_id"`
 
 	// ProjectID for context
 	ProjectID string `json:"project_id"`

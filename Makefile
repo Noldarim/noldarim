@@ -64,15 +64,17 @@ migrate:
 cli:
 	@go run ./cmd/noldarim $(ARGS)
 
-# Run all tests
+# Run all tests (backend + frontend)
 test:
-	@echo "Running all tests..."
+	@echo "Running Go tests..."
 	@if [ "$(shell uname)" = "Darwin" ] && [ -S "$(HOME)/.docker/run/docker.sock" ]; then \
 		echo "Detected macOS with Docker Desktop, setting DOCKER_HOST..."; \
 		DOCKER_HOST=unix://$(HOME)/.docker/run/docker.sock go test ./...; \
 	else \
 		go test ./...; \
 	fi
+	@echo "Running frontend tests..."
+	@cd desktop && bun run test
 
 # Run TUI package tests only (legacy UI)
 test-tui:

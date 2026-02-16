@@ -4,10 +4,9 @@
 package agents
 
 import (
-	"bytes"
 	"fmt"
 	"sort"
-	"text/template"
+	"strings"
 )
 
 // ClaudeAdapter handles execution configuration for Claude AI agent
@@ -96,19 +95,15 @@ func (ca *ClaudeAdapter) PrepareCommand(config AgentConfig) ([]string, error) {
 	return command, nil
 }
 
-// RenderPrompt renders a prompt template with variables
+// RenderPrompt renders a prompt template with variables using simple string
+// replacement. Avoids text/template to prevent template injection from
+// user-controlled variable values.
 func (ca *ClaudeAdapter) RenderPrompt(promptTemplate string, variables map[string]string) (string, error) {
-	// Parse template
-	tmpl, err := template.New("prompt").Parse(promptTemplate)
-	if err != nil {
-		return "", fmt.Errorf("failed to parse template: %w", err)
+	result := promptTemplate
+	for key, value := range variables {
+		// Replace both {{.Key}} and {{ .Key }} forms
+		result = strings.ReplaceAll(result, "{{."+key+"}}", value)
+		result = strings.ReplaceAll(result, "{{ ."+key+" }}", value)
 	}
-
-	// Execute template with variables
-	var buf bytes.Buffer
-	if err := tmpl.Execute(&buf, variables); err != nil {
-		return "", fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	return buf.String(), nil
+	return result, nil
 }

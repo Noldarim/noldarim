@@ -16,6 +16,8 @@ const (
 	AIObservabilityWorkflowName = "AIObservabilityWorkflow"
 	// RawTranscriptLineSignal is the signal for raw transcript lines from the watcher
 	RawTranscriptLineSignal = "raw-transcript-line"
+	// StepChangeSignal is sent by PipelineWorkflow to communicate the current step ID
+	StepChangeSignal = "step-change"
 )
 
 // AIObservabilityWorkflow watches Claude's transcript and processes events via orchestrator.
@@ -78,6 +80,23 @@ func AIObservabilityWorkflow(ctx workflow.Context, input types.AIObservabilityWo
 	eventsProcessed := 0
 	failedEvents := 0
 
+	// Track which pipeline step is currently executing (set via StepChangeSignal from PipelineWorkflow)
+	currentStepID := ""
+
+	// Set up signal handler for step changes from PipelineWorkflow
+	stepChangeChan := workflow.GetSignalChannel(ctx, StepChangeSignal)
+	workflow.Go(ctx, func(gCtx workflow.Context) {
+		for {
+			var stepID string
+			more := stepChangeChan.Receive(gCtx, &stepID)
+			if !more {
+				return
+			}
+			currentStepID = stepID
+			logger.Info("Step context changed", "stepID", stepID)
+		}
+	})
+
 	// Set up signal handler for raw transcript lines from WatchTranscriptActivity
 	rawLineChan := workflow.GetSignalChannel(ctx, RawTranscriptLineSignal)
 
@@ -97,10 +116,14 @@ func AIObservabilityWorkflow(ctx workflow.Context, input types.AIObservabilityWo
 			// Each step runs on the orchestrator queue
 
 			// Step 1: Save raw event to database (persistence first)
+			// Capture current step ID at event receive time
+			stepID := currentStepID
+
 			var saveOutput types.SaveRawEventOutput
 			saveErr := workflow.ExecuteActivity(orchestratorCtx, "SaveRawEventActivity", types.SaveRawEventInput{
 				TaskID:     rawEvent.TaskID,
 				RunID:      input.RunID,
+				StepID:     stepID,
 				ProjectID:  rawEvent.ProjectID,
 				Source:     rawEvent.Source,
 				RawPayload: rawEvent.RawLine,
@@ -133,6 +156,7 @@ func AIObservabilityWorkflow(ctx workflow.Context, input types.AIObservabilityWo
 				Source:     rawEvent.Source,
 				TaskID:     rawEvent.TaskID,
 				RunID:      input.RunID,
+				StepID:     stepID,
 				ProjectID:  rawEvent.ProjectID,
 				RawPayload: rawEvent.RawLine,
 			}).Get(gCtx, &parseOutput)

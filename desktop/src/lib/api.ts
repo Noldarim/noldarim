@@ -8,9 +8,15 @@ import type {
   StartPipelineRequest
 } from "./types";
 
+const DEFAULT_TIMEOUT_MS = 30_000;
+
 async function requestJson<T>(baseUrl: string, path: string, init?: RequestInit): Promise<T> {
+  // Use caller-provided signal if present, otherwise apply a default timeout.
+  const signal = init?.signal ?? AbortSignal.timeout(DEFAULT_TIMEOUT_MS);
+
   const response = await fetch(`${baseUrl}${path}`, {
     ...init,
+    signal,
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {})

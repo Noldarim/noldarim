@@ -664,6 +664,9 @@ components:
         run_id:
           type: string
           description: Pipeline run ID for aggregating all steps
+        step_id:
+          type: string
+          description: Pipeline step ID this event belongs to
         message_uuid:
           type: string
         parent_uuid:

@@ -182,7 +182,7 @@ func (p *eventProcessor) process(ctx context.Context, rawLine []byte, timestamp 
 			// Set EventID and RawPayload before conversion
 			event.EventID = models.GenerateEventID()
 			event.RawPayload = rawLine
-			record := models.NewAIActivityRecordFromParsed(event, p.taskID, "") // Empty RunID for dev harness
+			record := models.NewAIActivityRecordFromParsed(event, p.taskID, "", "") // Empty RunID/StepID for dev harness
 			if err := p.ds.SaveAIActivityRecord(ctx, record); err != nil {
 				fmt.Printf("  DB SAVE ERROR: %v\n", err)
 			} else if p.verbose {
@@ -362,7 +362,7 @@ func processFileWithTUI(filePath string, processor *eventProcessor) {
 		for _, parsed := range parsedEvents {
 			parsed.EventID = models.GenerateEventID()
 			parsed.RawPayload = line
-			record := models.NewAIActivityRecordFromParsed(parsed, processor.taskID, "") // Empty RunID for dev harness
+			record := models.NewAIActivityRecordFromParsed(parsed, processor.taskID, "", "") // Empty RunID/StepID for dev harness
 			records = append(records, record)
 		}
 	}

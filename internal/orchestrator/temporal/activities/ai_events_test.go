@@ -365,6 +365,128 @@ func TestParseEventActivity_MultipleEventsFromSingleEntry(t *testing.T) {
 // Tests that SaveRawEvent → ParseEvent chain works correctly
 // =============================================================================
 
+func TestSaveAndParse_StepID_PersistedThroughChain(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+
+	adapters.RegisterAll()
+
+	fixture := services.WithDataService(t)
+	defer fixture.Cleanup()
+
+	activities := NewAIEventActivities(fixture.Service)
+
+	// A parseable Claude transcript entry
+	rawPayload := json.RawMessage(`{
+		"type": "assistant",
+		"message": {
+			"content": [{"type": "text", "text": "Step ID integration test"}]
+		}
+	}`)
+
+	// Step 1: Save raw event with StepID
+	saveInput := types.SaveRawEventInput{
+		TaskID:     "task-step-int",
+		RunID:      "run-step-int",
+		StepID:     "step-analyze",
+		ProjectID:  "project-step-int",
+		Source:     "claude",
+		RawPayload: rawPayload,
+		Timestamp:  time.Now(),
+	}
+
+	env1 := testSuite.NewTestActivityEnvironment()
+	env1.RegisterActivity(activities.SaveRawEventActivity)
+
+	encoded1, err := env1.ExecuteActivity(activities.SaveRawEventActivity, saveInput)
+	require.NoError(t, err)
+
+	var saveOutput types.SaveRawEventOutput
+	require.NoError(t, encoded1.Get(&saveOutput))
+	require.True(t, saveOutput.Success)
+
+	// Verify raw record in DB has StepID set
+	rawRecords, err := fixture.Service.GetAIActivityByTask(context.Background(), saveInput.TaskID)
+	require.NoError(t, err)
+	require.Len(t, rawRecords, 1)
+	assert.Equal(t, "step-analyze", rawRecords[0].StepID, "Raw record should have StepID persisted")
+	assert.Equal(t, "run-step-int", rawRecords[0].RunID)
+
+	// Step 2: Parse with StepID — verify parsed records also carry it
+	parseInput := types.ParseEventInput{
+		EventID:    saveOutput.EventID,
+		Source:     "claude",
+		TaskID:     saveInput.TaskID,
+		RunID:      saveInput.RunID,
+		StepID:     saveInput.StepID,
+		ProjectID:  saveInput.ProjectID,
+		RawPayload: rawPayload,
+	}
+
+	env2 := testSuite.NewTestActivityEnvironment()
+	env2.RegisterActivity(activities.ParseEventActivity)
+
+	encoded2, err := env2.ExecuteActivity(activities.ParseEventActivity, parseInput)
+	require.NoError(t, err)
+
+	var parseOutput types.ParseEventOutput
+	require.NoError(t, encoded2.Get(&parseOutput))
+	require.True(t, parseOutput.Success)
+	require.NotEmpty(t, parseOutput.Events)
+
+	// Every parsed event should carry the StepID
+	for _, event := range parseOutput.Events {
+		assert.Equal(t, "step-analyze", event.StepID,
+			"Parsed event %s should carry StepID through NewAIActivityRecordFromParsed", event.EventID)
+		assert.Equal(t, "run-step-int", event.RunID)
+		assert.Equal(t, saveInput.TaskID, event.TaskID)
+	}
+}
+
+func TestSaveAndParse_EmptyStepID_GracefulDegradation(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+
+	adapters.RegisterAll()
+
+	fixture := services.WithDataService(t)
+	defer fixture.Cleanup()
+
+	activities := NewAIEventActivities(fixture.Service)
+
+	rawPayload := json.RawMessage(`{
+		"type": "assistant",
+		"message": {
+			"content": [{"type": "text", "text": "No step context"}]
+		}
+	}`)
+
+	// Save without StepID (simulates events before any step starts, or legacy code)
+	saveInput := types.SaveRawEventInput{
+		TaskID:     "task-no-step",
+		RunID:      "run-no-step",
+		StepID:     "", // intentionally empty
+		ProjectID:  "project-no-step",
+		Source:     "claude",
+		RawPayload: rawPayload,
+		Timestamp:  time.Now(),
+	}
+
+	env1 := testSuite.NewTestActivityEnvironment()
+	env1.RegisterActivity(activities.SaveRawEventActivity)
+
+	encoded1, err := env1.ExecuteActivity(activities.SaveRawEventActivity, saveInput)
+	require.NoError(t, err)
+
+	var saveOutput types.SaveRawEventOutput
+	require.NoError(t, encoded1.Get(&saveOutput))
+	require.True(t, saveOutput.Success)
+
+	// Verify empty StepID is stored without error
+	records, err := fixture.Service.GetAIActivityByTask(context.Background(), saveInput.TaskID)
+	require.NoError(t, err)
+	require.Len(t, records, 1)
+	assert.Empty(t, records[0].StepID, "Empty StepID should be stored gracefully")
+}
+
 func TestSaveAndParse_Integration(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 

@@ -1,4 +1,3 @@
-import { StepStatus } from "./types";
 import type { AIActivityRecord, PipelineRun, StepResult } from "./types";
 
 export type StepActivityMap = Record<string, AIActivityRecord[]>;
@@ -13,96 +12,30 @@ export type ToolGroup = {
   };
 };
 
-function timestampMs(value?: string): number | undefined {
-  if (!value) {
-    return undefined;
-  }
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? undefined : parsed;
-}
-
 function sortedStepResults(run: PipelineRun): StepResult[] {
   return [...(run.step_results ?? [])].sort((a, b) => a.step_index - b.step_index);
 }
 
 /**
- * Maps AI activity events to their corresponding pipeline steps based on time windows.
- * @param now - Injectable clock for deterministic tests. Defaults to current time.
+ * Maps AI activity events to their corresponding pipeline steps using the step_id field.
+ * Events without a step_id (legacy data) are excluded gracefully.
  */
 export function mapActivitiesToSteps(
   run: PipelineRun,
-  activities: AIActivityRecord[],
-  now: Date = new Date()
+  activities: AIActivityRecord[]
 ): StepActivityMap {
-  const results = sortedStepResults(run).filter((step) => step.status !== StepStatus.Skipped);
+  const results = sortedStepResults(run);
   const mapped: StepActivityMap = {};
 
   for (const step of results) {
     mapped[step.step_id] = [];
   }
-  if (results.length === 0) {
-    return mapped;
-  }
-
-  const nowMs = now.getTime();
-  const runStart = timestampMs(run.started_at);
-
-  const windows = results.map((step, index) => {
-    const previous = index > 0 ? results[index - 1] : undefined;
-    const previousEnd = previous ? timestampMs(previous.completed_at) : undefined;
-
-    let start = timestampMs(step.started_at);
-    if (start === undefined) {
-      start = previousEnd ?? runStart ?? nowMs;
-    }
-
-    let end = timestampMs(step.completed_at);
-    if (end === undefined) {
-      end = nowMs;
-    }
-
-    if (end < start) {
-      end = start;
-    }
-
-    return {
-      stepId: step.step_id,
-      start,
-      end,
-      hasStartedAt: timestampMs(step.started_at) !== undefined
-    };
-  });
-
-  const firstStepId = windows[0].stepId;
-  const lastStarted = [...windows].reverse().find((window) => window.hasStartedAt);
-  const lastStartedStepId = lastStarted?.stepId ?? windows[windows.length - 1].stepId;
 
   for (const event of activities) {
-    const ts = timestampMs(event.timestamp);
-
-    if (ts === undefined) {
-      mapped[lastStartedStepId].push(event);
-      continue;
+    const stepId = event.step_id;
+    if (stepId && mapped[stepId]) {
+      mapped[stepId].push(event);
     }
-
-    if (ts < windows[0].start) {
-      mapped[firstStepId].push(event);
-      continue;
-    }
-
-    const match = windows.find((window) => ts >= window.start && ts <= window.end);
-    if (match) {
-      mapped[match.stepId].push(event);
-      continue;
-    }
-
-    const lastWindow = windows[windows.length - 1];
-    if (ts > lastWindow.end) {
-      mapped[lastStartedStepId].push(event);
-      continue;
-    }
-
-    mapped[firstStepId].push(event);
   }
 
   return mapped;
