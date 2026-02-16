@@ -23,6 +23,19 @@ servers:
     description: Local development
 
 paths:
+  /api/v1/agent/defaults:
+    get:
+      operationId: getAgentDefaults
+      summary: Get default agent configuration
+      description: Returns server-side defaults used when building pipeline steps.
+      responses:
+        "200":
+          description: Agent defaults loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AgentDefaultsResponse"
+
   /api/v1/projects:
     get:
       operationId: getProjects
@@ -52,7 +65,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateProjectRequest"
       responses:
-        "200":
+        "201":
           description: Project created
           content:
             application/json:
@@ -100,7 +113,7 @@ paths:
             schema:
               $ref: "#/components/schemas/CreateTaskRequest"
       responses:
-        "200":
+        "201":
           description: Task created (pipeline started)
           content:
             application/json:
@@ -239,7 +252,7 @@ paths:
             schema:
               $ref: "#/components/schemas/StartPipelineRequest"
       responses:
-        "200":
+        "201":
           description: Pipeline started
           content:
             application/json:
@@ -278,6 +291,58 @@ paths:
                 $ref: "#/components/schemas/CancelPipelineResult"
         "400":
           $ref: "#/components/responses/BadRequest"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/pipelines/{runId}:
+    get:
+      operationId: getPipelineRun
+      summary: Get one pipeline run with step results
+      parameters:
+        - $ref: "#/components/parameters/RunID"
+      responses:
+        "200":
+          description: Pipeline run loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PipelineRun"
+        "404":
+          description: Pipeline run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+
+  /api/v1/pipelines/{runId}/activity:
+    get:
+      operationId: getPipelineRunActivity
+      summary: Get AI activity events for a pipeline run
+      parameters:
+        - $ref: "#/components/parameters/RunID"
+      responses:
+        "200":
+          description: Run activity loaded
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AIActivityBatchEvent"
+        "404":
+          description: Pipeline run not found
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "500":
           description: Server error
           content:
@@ -327,6 +392,15 @@ components:
         type: string
       description: Task ID
 
+    RunID:
+      name: runId
+      in: path
+      required: true
+      schema:
+        type: string
+        minLength: 1
+      description: Pipeline run ID
+
   responses:
     BadRequest:
       description: Invalid request body
@@ -342,6 +416,20 @@ components:
         status:
           type: string
       required: [status]
+
+    AgentDefaultsResponse:
+      type: object
+      properties:
+        tool_name:
+          type: string
+        tool_version:
+          type: string
+        flag_format:
+          type: string
+        tool_options:
+          type: object
+          additionalProperties: true
+      required: [tool_name, tool_version, flag_format, tool_options]
 
     PipelineRunResult:
       type: object
@@ -890,8 +978,7 @@ components:
 
     ErrorResponse:
       type: object
+      required: [error]
       properties:
         error:
-          type: string
-        context:
           type: string

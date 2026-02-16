@@ -50,6 +50,7 @@ func newUpgrader(allowedOrigins []string) websocket.Upgrader {
 type SubscriptionFilter struct {
 	ProjectID string `json:"project_id,omitempty"`
 	TaskID    string `json:"task_id,omitempty"`
+	RunID     string `json:"run_id,omitempty"`
 }
 
 // wsClient represents a single connected WebSocket client.
@@ -125,7 +126,7 @@ func (c *wsClient) matchesAny(event protocol.Event) bool {
 	copy(filters, c.filters)
 	c.mu.RUnlock()
 
-	projectID, taskID := extractEventIDs(event)
+	projectID, taskID, runID := extractEventIDs(event)
 
 	for _, f := range filters {
 		if f.ProjectID != "" && f.ProjectID != projectID {
@@ -134,13 +135,16 @@ func (c *wsClient) matchesAny(event protocol.Event) bool {
 		if f.TaskID != "" && f.TaskID != taskID {
 			continue
 		}
+		if f.RunID != "" && f.RunID != runID {
+			continue
+		}
 		return true
 	}
 	return false
 }
 
-// projectScoped and taskScoped allow events to declare their IDs without
-// requiring this file to enumerate every event type.
+// projectScoped, taskScoped, and runScoped allow events to declare their IDs
+// without requiring this file to enumerate every event type.
 type projectScoped interface {
 	GetProjectID() string
 }
@@ -149,21 +153,28 @@ type taskScoped interface {
 	GetTaskID() string
 }
 
-// extractEventIDs extracts project and task IDs from events.
-// Events that implement projectScoped/taskScoped are handled automatically.
+type runScoped interface {
+	GetRunID() string
+}
+
+// extractEventIDs extracts project, task, and run IDs from events.
+// Events that implement projectScoped/taskScoped/runScoped are handled automatically.
 // Special cases (e.g. ProjectCreatedEvent) still need explicit handling.
-func extractEventIDs(event protocol.Event) (projectID, taskID string) {
+func extractEventIDs(event protocol.Event) (projectID, taskID, runID string) {
 	if ps, ok := event.(projectScoped); ok {
 		projectID = ps.GetProjectID()
 	}
 	if ts, ok := event.(taskScoped); ok {
 		taskID = ts.GetTaskID()
 	}
+	if rs, ok := event.(runScoped); ok {
+		runID = rs.GetRunID()
+	}
 	// Special case: ProjectCreatedEvent carries ID inside nested struct
 	if e, ok := event.(protocol.ProjectCreatedEvent); ok && e.Project != nil {
 		projectID = e.Project.ID
 	}
-	return projectID, taskID
+	return projectID, taskID, runID
 }
 
 // wsMessage is the envelope for client → server WebSocket messages.
@@ -297,7 +308,7 @@ func (c *wsClient) writePump() {
 func removeFilter(filters []SubscriptionFilter, target SubscriptionFilter) []SubscriptionFilter {
 	result := make([]SubscriptionFilter, 0, len(filters))
 	for _, f := range filters {
-		if f.ProjectID == target.ProjectID && f.TaskID == target.TaskID {
+		if f.ProjectID == target.ProjectID && f.TaskID == target.TaskID && f.RunID == target.RunID {
 			continue
 		}
 		result = append(result, f)

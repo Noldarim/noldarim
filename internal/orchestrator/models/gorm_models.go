@@ -165,8 +165,8 @@ type AIActivityRecord struct {
 
 	// Classification
 	EventType    AIEventType `gorm:"type:text;index;not null" json:"event_type"`
-	IsHumanInput *bool     `gorm:"type:boolean" json:"is_human_input"` // true = human typed
-	Timestamp    time.Time `gorm:"index;not null" json:"timestamp"`
+	IsHumanInput *bool       `gorm:"type:boolean" json:"is_human_input"` // true = human typed
+	Timestamp    time.Time   `gorm:"index;not null" json:"timestamp"`
 
 	// Model info
 	Model      string `gorm:"type:text" json:"model"`
@@ -207,30 +207,30 @@ func (AIActivityRecord) TableName() string {
 // This is for reading records back into a display-friendly format.
 func (r *AIActivityRecord) ToParsedEventFields() map[string]interface{} {
 	return map[string]interface{}{
-		"event_id":           r.EventID,
-		"session_id":         r.SessionID,
-		"task_id":            r.TaskID,
-		"message_uuid":       r.MessageUUID,
-		"parent_uuid":        r.ParentUUID,
-		"request_id":         r.RequestID,
-		"event_type":         r.EventType,
-		"is_human_input":     r.IsHumanInput,
-		"timestamp":          r.Timestamp,
-		"model":              r.Model,
-		"stop_reason":        r.StopReason,
-		"input_tokens":       r.InputTokens,
-		"output_tokens":      r.OutputTokens,
-		"cache_read_tokens":  r.CacheReadTokens,
+		"event_id":            r.EventID,
+		"session_id":          r.SessionID,
+		"task_id":             r.TaskID,
+		"message_uuid":        r.MessageUUID,
+		"parent_uuid":         r.ParentUUID,
+		"request_id":          r.RequestID,
+		"event_type":          r.EventType,
+		"is_human_input":      r.IsHumanInput,
+		"timestamp":           r.Timestamp,
+		"model":               r.Model,
+		"stop_reason":         r.StopReason,
+		"input_tokens":        r.InputTokens,
+		"output_tokens":       r.OutputTokens,
+		"cache_read_tokens":   r.CacheReadTokens,
 		"cache_create_tokens": r.CacheCreateTokens,
-		"context_tokens":     r.ContextTokens,
-		"context_depth":      r.ContextDepth,
-		"tool_name":          r.ToolName,
-		"tool_input_summary": r.ToolInputSummary,
-		"tool_success":       r.ToolSuccess,
-		"tool_error":         r.ToolError,
-		"file_path":          r.FilePath,
-		"content_preview":    r.ContentPreview,
-		"content_length":     r.ContentLength,
+		"context_tokens":      r.ContextTokens,
+		"context_depth":       r.ContextDepth,
+		"tool_name":           r.ToolName,
+		"tool_input_summary":  r.ToolInputSummary,
+		"tool_success":        r.ToolSuccess,
+		"tool_error":          r.ToolError,
+		"file_path":           r.FilePath,
+		"content_preview":     r.ContentPreview,
+		"content_length":      r.ContentLength,
 	}
 }
 
@@ -276,6 +276,16 @@ func (r *AIActivityRecord) GetMetadata() common.Metadata {
 		IdempotencyKey: r.EventID,
 		Version:        common.CurrentProtocolVersion,
 	}
+}
+
+// GetTaskID exposes task scoping for websocket filtering.
+func (r *AIActivityRecord) GetTaskID() string {
+	return r.TaskID
+}
+
+// GetRunID exposes run scoping for websocket filtering on pipeline runs.
+func (r *AIActivityRecord) GetRunID() string {
+	return r.RunID
 }
 
 // GetRawPayloadJSON returns the raw payload as json.RawMessage for unmarshaling.

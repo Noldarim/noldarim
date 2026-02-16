@@ -32,6 +32,30 @@ Primary runtime is **server-first** (`cmd/server`).
 
 WebSocket events are available at `ws://127.0.0.1:8080/ws`.
 
+## Desktop App (Tauri + React)
+
+Desktop UI lives in `desktop/`.
+
+1. Start backend runtime first (Temporal + server):
+   ```bash
+   temporal server start-dev
+   make build-agent
+   make run
+   ```
+2. Install desktop dependencies:
+   ```bash
+   cd desktop
+   bun install
+   # npm fallback:
+   # npm install
+   ```
+3. Run desktop app in Tauri dev mode:
+   ```bash
+   make desktop-dev
+   # or frontend-only mode:
+   # make desktop-web
+   ```
+
 ## Run for Development
 
 ```bash
@@ -46,6 +70,9 @@ Useful commands:
 make test
 make build-server
 make run-tui   # legacy UI path
+make desktop-dev
+make desktop-build
+make desktop-test
 ```
 
 ## Required Dependencies

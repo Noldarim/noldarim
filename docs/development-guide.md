@@ -39,6 +39,8 @@
 - **Git**
 - **Temporal server** (local dev or cloud)
 - **Make**
+- **Bun** (preferred for desktop app) or **npm** fallback
+- **Rust/Cargo** toolchain (required by Tauri desktop runtime)
 
 ### Runtime services used by noldarim
 
@@ -108,6 +110,26 @@ make run-server
 
 This starts `cmd/server` (REST + WebSocket API + orchestrator runtime).
 
+### Desktop app (Tauri + React)
+
+Desktop source is in `desktop/`.
+
+Install desktop dependencies:
+
+```bash
+cd desktop
+bun install
+# npm fallback:
+# npm install
+```
+
+Run desktop app:
+
+```bash
+make desktop-dev      # Tauri desktop runtime
+make desktop-web      # frontend-only
+```
+
 ### Optional legacy runtime (TUI)
 
 ```bash
@@ -144,6 +166,10 @@ make test-tui          # legacy TUI package tests
 
 make build-agent       # build Docker image used by task execution
 make firewall          # build/run firewall helper container
+make desktop-dev       # run Tauri desktop app
+make desktop-web       # run desktop frontend only
+make desktop-build     # build desktop app
+make desktop-test      # run desktop unit tests
 
 make cli ARGS="projects"
 ```

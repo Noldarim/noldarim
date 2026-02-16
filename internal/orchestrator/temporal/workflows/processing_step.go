@@ -300,10 +300,11 @@ func ProcessingStepWorkflow(ctx workflow.Context, input types.ProcessingStepInpu
 	// =========================================================================
 	// Note: We don't wait for observability here - the pipeline-level observability
 	// workflow continues running and will be waited on at the end of PipelineWorkflow.
-	taskID := fmt.Sprintf("%s-%s", input.RunID, input.StepID)
+	// Activity records are stored with task_id = runID (pipeline-level aggregation),
+	// so query by runID to match what was actually written by the observability workflow.
 	var tokenTotals types.GetTokenTotalsActivityOutput
 	err = workflow.ExecuteActivity(orchestratorCtx, "GetTokenTotalsActivity",
-		types.GetTokenTotalsActivityInput{TaskID: taskID}).Get(orchestratorCtx, &tokenTotals)
+		types.GetTokenTotalsActivityInput{TaskID: input.RunID}).Get(orchestratorCtx, &tokenTotals)
 	if cancelled, cancelErr := propagateCancellation(err, ctx, output, "GetTokenTotalsActivity"); cancelled {
 		return output, cancelErr
 	}

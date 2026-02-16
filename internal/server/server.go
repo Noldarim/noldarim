@@ -30,10 +30,11 @@ func New(
 	dataService *services.DataService,
 	gitMgr *services.GitServiceManager,
 	pipeline *services.PipelineService,
+	agentDefaults AgentDefaultsResponse,
 ) *Server {
 	registry := NewClientRegistry()
 	broadcaster := NewEventBroadcaster(eventChan, registry)
-	handlers := NewHandlers(broadcaster, dataService, gitMgr, pipeline)
+	handlers := NewHandlers(broadcaster, dataService, gitMgr, pipeline, agentDefaults)
 
 	r := chi.NewRouter()
 
@@ -49,6 +50,7 @@ func New(
 		// Projects
 		r.Get("/projects", handlers.GetProjects)
 		r.Post("/projects", handlers.CreateProject)
+		r.Get("/agent/defaults", handlers.GetAgentDefaults)
 
 		// Project sub-resources
 		r.Route("/projects/{id}", func(r chi.Router) {
@@ -65,6 +67,8 @@ func New(
 		})
 
 		// Pipeline operations
+		r.Get("/pipelines/{runId}", handlers.GetPipelineRun)
+		r.Get("/pipelines/{runId}/activity", handlers.GetPipelineRunAIActivity)
 		r.Post("/pipelines/{runId}/cancel", handlers.CancelPipeline)
 	})
 
@@ -90,12 +94,28 @@ func New(
 // Blocks until the server is shut down or the context is cancelled.
 func (s *Server) Run(ctx context.Context) error {
 	go func() {
-		defer func() {
-			if r := recover(); r != nil {
-				getLog().Error().Interface("panic", r).Msg("Event broadcaster panic - events will no longer be dispatched")
+		const maxRetries = 3
+		for attempt := 1; attempt <= maxRetries; attempt++ {
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						getLog().Error().Interface("panic", r).Int("attempt", attempt).Msg("Event broadcaster panic")
+					}
+				}()
+				s.broadcaster.Run(ctx)
+			}()
+
+			// Normal return (context cancelled) — exit without retry.
+			if ctx.Err() != nil {
+				return
 			}
-		}()
-		s.broadcaster.Run(ctx)
+
+			if attempt < maxRetries {
+				getLog().Warn().Int("attempt", attempt).Msg("Restarting event broadcaster after panic")
+				time.Sleep(1 * time.Second)
+			}
+		}
+		getLog().Error().Msg("Event broadcaster exhausted retries - events will no longer be dispatched")
 	}()
 
 	getLog().Info().Str("addr", s.httpServer.Addr).Msg("API server listening")

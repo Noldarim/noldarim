@@ -6,7 +6,8 @@
 	dev-tui-layout-lipgloss dev-tui-tokendisplay dev-tui-elapsedtimer dev-tui-stepprogress \
 	dev-tui-activityfeed dev-tui-pipelinesummary dev-tui-projectlist dev-tui-taskview \
 	dev-tui-settings dev-tui-projectcreation dev-tui-taskdetails dev-adapter \
-	dev-dbexplorer dev-dbexplorer-list dev-obsharness dev-tui-list
+	dev-dbexplorer dev-dbexplorer-list dev-obsharness dev-tui-list \
+	desktop-dev desktop-web desktop-build desktop-test
 
 # Run the primary application runtime (server)
 run: run-server
@@ -36,6 +37,23 @@ build-tui:
 build-cli:
 	@echo "Building noldarim CLI..."
 	go build -o bin/noldarim ./cmd/noldarim
+
+# Desktop app (Tauri + React)
+desktop-dev:
+	@echo "Running desktop app (Tauri dev mode)..."
+	@cd desktop && if command -v bun >/dev/null 2>&1; then bun run dev:tauri; else npm run dev:tauri; fi
+
+desktop-web:
+	@echo "Running desktop web frontend only..."
+	@cd desktop && if command -v bun >/dev/null 2>&1; then bun run dev; else npm run dev; fi
+
+desktop-build:
+	@echo "Building desktop app..."
+	@cd desktop && if command -v bun >/dev/null 2>&1; then bun run build:tauri; else npm run build:tauri; fi
+
+desktop-test:
+	@echo "Running desktop tests..."
+	@cd desktop && if command -v bun >/dev/null 2>&1; then bun run test; else npm run test; fi
 
 # Run database migrations
 migrate:

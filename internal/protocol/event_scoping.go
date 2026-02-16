@@ -21,3 +21,4 @@ func (e PipelineRunStartedEvent) GetProjectID() string    { return e.ProjectID }
 func (e PipelineRunsLoadedEvent) GetProjectID() string    { return e.ProjectID }
 func (e ErrorEvent) GetTaskID() string                    { return e.TaskID }
 func (e PipelineLifecycleEvent) GetProjectID() string     { return e.ProjectID }
+func (e PipelineLifecycleEvent) GetRunID() string         { return e.RunID }

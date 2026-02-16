@@ -4,11 +4,13 @@
 package server
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"path/filepath"
 	"strconv"
 	"strings"
+
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 	"github.com/noldarim/noldarim/internal/orchestrator/services"
 	"github.com/noldarim/noldarim/internal/protocol"
@@ -16,27 +18,78 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
+type dataReader interface {
+	LoadProjects(ctx context.Context) (map[string]*models.Project, error)
+	GetProject(ctx context.Context, projectID string) (*models.Project, error)
+	LoadTasks(ctx context.Context, projectID string) (map[string]*models.Task, error)
+	GetAIActivityByTask(ctx context.Context, taskID string) ([]*models.AIActivityRecord, error)
+	GetPipelineRunsByProject(ctx context.Context, projectID string) ([]*models.PipelineRun, error)
+	GetPipelineRun(ctx context.Context, runID string) (*models.PipelineRun, error)
+	GetAIActivityByRunID(ctx context.Context, runID string) ([]*models.AIActivityRecord, error)
+}
+
+type gitManager interface {
+	GetService(path string) (*services.GitServiceHandle, error)
+}
+
+type pipelineMutator interface {
+	CreateProject(ctx context.Context, name, description, repoPath string) (*models.Project, error)
+	CreateTask(ctx context.Context, params services.CreateTaskParams) (*services.PipelineRunResult, error)
+	ToggleTask(ctx context.Context, projectID, taskID string) (models.TaskStatus, error)
+	DeleteTask(ctx context.Context, projectID, taskID string) error
+	StartPipeline(ctx context.Context, params services.StartPipelineParams) (*services.PipelineRunResult, error)
+	CancelPipeline(ctx context.Context, runID, reason string) (*services.CancelResult, error)
+}
+
+// AgentDefaultsResponse provides server-side default agent configuration for desktop clients.
+type AgentDefaultsResponse struct {
+	ToolName    string                 `json:"tool_name"`
+	ToolVersion string                 `json:"tool_version"`
+	FlagFormat  string                 `json:"flag_format"`
+	ToolOptions map[string]any `json:"tool_options"`
+}
+
 // Handlers holds dependencies for HTTP handlers.
 type Handlers struct {
 	broadcaster *EventBroadcaster
-	data        *services.DataService
-	git         *services.GitServiceManager
-	pipeline    *services.PipelineService
+	data        dataReader
+	git         gitManager
+	pipeline    pipelineMutator
+	defaults    AgentDefaultsResponse
 }
 
 // NewHandlers creates the handler set.
-func NewHandlers(broadcaster *EventBroadcaster, data *services.DataService, git *services.GitServiceManager, pipeline *services.PipelineService) *Handlers {
-	return &Handlers{broadcaster: broadcaster, data: data, git: git, pipeline: pipeline}
+func NewHandlers(
+	broadcaster *EventBroadcaster,
+	data dataReader,
+	git gitManager,
+	pipeline pipelineMutator,
+	defaults AgentDefaultsResponse,
+) *Handlers {
+	return &Handlers{
+		broadcaster: broadcaster,
+		data:        data,
+		git:         git,
+		pipeline:    pipeline,
+		defaults:    defaults,
+	}
 }
 
 // --- helpers ---
 
-func writeJSON(w http.ResponseWriter, status int, v interface{}) {
+func writeJSON(w http.ResponseWriter, status int, v any) {
 	w.Header().Set("Content-Type", "application/json")
 	w.WriteHeader(status)
 	if err := json.NewEncoder(w).Encode(v); err != nil {
 		getLog().Error().Err(err).Msg("Failed to encode JSON response")
 	}
+}
+
+func writeError(w http.ResponseWriter, status int, clientMsg string, err error) {
+	if err != nil {
+		getLog().Error().Err(err).Msg(clientMsg)
+	}
+	writeJSON(w, status, map[string]string{"error": clientMsg})
 }
 
 // --- GET handlers (direct reads, no command channel) ---
@@ -45,7 +98,7 @@ func writeJSON(w http.ResponseWriter, status int, v interface{}) {
 func (h *Handlers) GetProjects(w http.ResponseWriter, r *http.Request) {
 	projects, err := h.data.LoadProjects(r.Context())
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load projects", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load projects", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, protocol.ProjectsLoadedEvent{Projects: projects})
@@ -58,13 +111,13 @@ func (h *Handlers) GetTasks(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.data.GetProject(ctx, projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load project", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load project", err)
 		return
 	}
 
 	tasks, err := h.data.LoadTasks(ctx, projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load tasks", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load tasks", err)
 		return
 	}
 
@@ -93,7 +146,7 @@ func (h *Handlers) GetCommits(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.data.GetProject(ctx, projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load project", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load project", err)
 		return
 	}
 
@@ -108,14 +161,14 @@ func (h *Handlers) GetCommits(w http.ResponseWriter, r *http.Request) {
 
 	gitHandle, err := h.git.GetService(project.RepositoryPath)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to access git repository", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to access git repository", err)
 		return
 	}
 	defer gitHandle.Release()
 
 	commits, err := gitHandle.GetGitService().GetCommitHistory(ctx, project.RepositoryPath, limit)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load commits", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load commits", err)
 		return
 	}
 
@@ -143,7 +196,7 @@ func (h *Handlers) GetAIActivity(w http.ResponseWriter, r *http.Request) {
 
 	activities, err := h.data.GetAIActivityByTask(r.Context(), taskID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load AI activity", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load AI activity", err)
 		return
 	}
 
@@ -161,13 +214,13 @@ func (h *Handlers) GetPipelineRuns(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.data.GetProject(ctx, projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load project", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load project", err)
 		return
 	}
 
 	runs, err := h.data.GetPipelineRunsByProject(ctx, projectID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "Failed to load pipeline runs", "context": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to load pipeline runs", err)
 		return
 	}
 
@@ -182,6 +235,60 @@ func (h *Handlers) GetPipelineRuns(w http.ResponseWriter, r *http.Request) {
 		RepositoryPath: project.RepositoryPath,
 		Runs:           runsMap,
 	})
+}
+
+// GetPipelineRun handles GET /api/v1/pipelines/{runId}
+func (h *Handlers) GetPipelineRun(w http.ResponseWriter, r *http.Request) {
+	runID := strings.TrimSpace(chi.URLParam(r, "runId"))
+	if runID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "runId is required"})
+		return
+	}
+	run, err := h.data.GetPipelineRun(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to load pipeline run", err)
+		return
+	}
+	if run == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pipeline run not found"})
+		return
+	}
+	writeJSON(w, http.StatusOK, run)
+}
+
+// GetPipelineRunAIActivity handles GET /api/v1/pipelines/{runId}/activity
+func (h *Handlers) GetPipelineRunAIActivity(w http.ResponseWriter, r *http.Request) {
+	runID := strings.TrimSpace(chi.URLParam(r, "runId"))
+	if runID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "runId is required"})
+		return
+	}
+	run, err := h.data.GetPipelineRun(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to load pipeline run", err)
+		return
+	}
+	if run == nil {
+		writeJSON(w, http.StatusNotFound, map[string]string{"error": "pipeline run not found"})
+		return
+	}
+
+	activities, err := h.data.GetAIActivityByRunID(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to load AI activity", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, protocol.AIActivityBatchEvent{
+		TaskID:     runID,
+		ProjectID:  run.ProjectID,
+		Activities: activities,
+	})
+}
+
+// GetAgentDefaults handles GET /api/v1/agent/defaults
+func (h *Handlers) GetAgentDefaults(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, h.defaults)
 }
 
 // --- POST/PUT/DELETE handlers (direct service calls) ---
@@ -217,10 +324,10 @@ func (h *Handlers) CreateProject(w http.ResponseWriter, r *http.Request) {
 
 	project, err := h.pipeline.CreateProject(r.Context(), body.Name, body.Description, body.RepositoryPath)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to create project", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, project)
+	writeJSON(w, http.StatusCreated, project)
 }
 
 // createTaskRequest is the JSON body for task creation.
@@ -253,10 +360,10 @@ func (h *Handlers) CreateTask(w http.ResponseWriter, r *http.Request) {
 		AgentConfig:   body.AgentConfig,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to create task", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusCreated, result)
 }
 
 // ToggleTask handles POST /api/v1/projects/{id}/tasks/{taskId}/toggle
@@ -266,7 +373,7 @@ func (h *Handlers) ToggleTask(w http.ResponseWriter, r *http.Request) {
 
 	newStatus, err := h.pipeline.ToggleTask(r.Context(), projectID, taskID)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to toggle task", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": newStatus.String()})
@@ -278,7 +385,7 @@ func (h *Handlers) DeleteTask(w http.ResponseWriter, r *http.Request) {
 	taskID := chi.URLParam(r, "taskId")
 
 	if err := h.pipeline.DeleteTask(r.Context(), projectID, taskID); err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to delete task", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"status": "deleted"})
@@ -286,12 +393,18 @@ func (h *Handlers) DeleteTask(w http.ResponseWriter, r *http.Request) {
 
 // startPipelineRequest is the JSON body for pipeline creation.
 type startPipelineRequest struct {
-	Name            string               `json:"name"`
-	Steps           []protocol.StepInput `json:"steps"`
-	BaseCommitSHA   string               `json:"base_commit_sha,omitempty"`
-	ForkFromRunID   string               `json:"fork_from_run_id,omitempty"`
-	ForkAfterStepID string               `json:"fork_after_step_id,omitempty"`
-	NoAutoFork      bool                 `json:"no_auto_fork,omitempty"`
+	Name            string                     `json:"name"`
+	Steps           []startPipelineStepRequest `json:"steps"`
+	BaseCommitSHA   string                     `json:"base_commit_sha,omitempty"`
+	ForkFromRunID   string                     `json:"fork_from_run_id,omitempty"`
+	ForkAfterStepID string                     `json:"fork_after_step_id,omitempty"`
+	NoAutoFork      bool                       `json:"no_auto_fork,omitempty"`
+}
+
+type startPipelineStepRequest struct {
+	StepID      string                     `json:"step_id"`
+	Name        string                     `json:"name"`
+	AgentConfig *protocol.AgentConfigInput `json:"agent_config,omitempty"`
 }
 
 // StartPipeline handles POST /api/v1/projects/{id}/pipelines
@@ -312,20 +425,39 @@ func (h *Handlers) StartPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	steps := make([]protocol.StepInput, len(body.Steps))
+	for i, step := range body.Steps {
+		stepID := strings.TrimSpace(step.StepID)
+		stepName := strings.TrimSpace(step.Name)
+		if stepID == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "steps[].step_id is required"})
+			return
+		}
+		if stepName == "" {
+			writeJSON(w, http.StatusBadRequest, map[string]string{"error": "steps[].name is required"})
+			return
+		}
+		steps[i] = protocol.StepInput{
+			StepID:      stepID,
+			Name:        stepName,
+			AgentConfig: step.AgentConfig,
+		}
+	}
+
 	result, err := h.pipeline.StartPipeline(r.Context(), services.StartPipelineParams{
 		ProjectID:       projectID,
 		Name:            body.Name,
-		Steps:           body.Steps,
+		Steps:           steps,
 		BaseCommitSHA:   body.BaseCommitSHA,
 		ForkFromRunID:   body.ForkFromRunID,
 		ForkAfterStepID: body.ForkAfterStepID,
 		NoAutoFork:      body.NoAutoFork,
 	})
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to start pipeline", err)
 		return
 	}
-	writeJSON(w, http.StatusOK, result)
+	writeJSON(w, http.StatusCreated, result)
 }
 
 // cancelPipelineRequest is the JSON body for pipeline cancellation.
@@ -346,7 +478,7 @@ func (h *Handlers) CancelPipeline(w http.ResponseWriter, r *http.Request) {
 
 	result, err := h.pipeline.CancelPipeline(r.Context(), runID, body.Reason)
 	if err != nil {
-		writeJSON(w, http.StatusInternalServerError, map[string]string{"error": err.Error()})
+		writeError(w, http.StatusInternalServerError, "Failed to cancel pipeline", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, result)

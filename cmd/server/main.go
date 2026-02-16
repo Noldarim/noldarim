@@ -58,7 +58,19 @@ func main() {
 	}()
 
 	// Start API server
-	srv := server.New(&cfg.Server, eventChan, orch.DataService(), orch.GitServiceManager(), orch.PipelineService())
+	srv := server.New(
+		&cfg.Server,
+		eventChan,
+		orch.DataService(),
+		orch.GitServiceManager(),
+		orch.PipelineService(),
+		server.AgentDefaultsResponse{
+			ToolName:    cfg.Agent.DefaultTool,
+			ToolVersion: cfg.Agent.DefaultVersion,
+			FlagFormat:  cfg.Agent.FlagFormat,
+			ToolOptions: cfg.Agent.ToolOptions,
+		},
+	)
 
 	serverErrChan := make(chan error, 1)
 	go func() {
