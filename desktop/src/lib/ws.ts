@@ -1,4 +1,6 @@
 import type { WsEnvelope } from "./types";
+import { WsEnvelopeSchema } from "./schemas";
+import { incrementDroppedInvalidWs } from "./debug";
 
 type EventHandler = (message: WsEnvelope) => void;
 
@@ -52,12 +54,25 @@ export function connectPipelineStream(
     });
 
     ws.addEventListener("message", (event) => {
+      let raw: unknown;
       try {
-        const payload = JSON.parse(String(event.data)) as WsEnvelope;
-        onEvent(payload);
+        raw = JSON.parse(String(event.data));
       } catch {
-        onError("Received malformed WebSocket payload");
+        console.debug("[ws] Received non-JSON payload, dropping");
+        incrementDroppedInvalidWs();
+
+        return;
       }
+
+      const result = WsEnvelopeSchema.safeParse(raw);
+      if (!result.success) {
+        console.debug("[ws] Invalid WS envelope, dropping:", result.error);
+        incrementDroppedInvalidWs();
+
+        return;
+      }
+
+      onEvent(result.data);
     });
 
     ws.addEventListener("error", () => {

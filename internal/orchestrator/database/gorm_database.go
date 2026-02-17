@@ -537,12 +537,18 @@ func (db *GormDB) GetLatestPipelineRun(ctx context.Context) (*models.PipelineRun
 	return &run, nil
 }
 
-// UpdatePipelineRunStatus updates a pipeline run's status
-func (db *GormDB) UpdatePipelineRunStatus(ctx context.Context, runID string, status models.PipelineRunStatus) error {
+// UpdatePipelineRunStatus updates a pipeline run's status and optional error message
+func (db *GormDB) UpdatePipelineRunStatus(ctx context.Context, runID string, status models.PipelineRunStatus, errorMessage string) error {
+	updates := map[string]interface{}{
+		"status": status,
+	}
+	if errorMessage != "" {
+		updates["error_message"] = errorMessage
+	}
 	return db.db.WithContext(ctx).
 		Model(&models.PipelineRun{}).
 		Where("id = ?", runID).
-		Update("status", status).Error
+		Updates(updates).Error
 }
 
 // UpdatePipelineRun updates a pipeline run (only non-zero fields)

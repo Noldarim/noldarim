@@ -316,9 +316,9 @@ func (ds *DataService) GetLatestPipelineRun(ctx context.Context) (*models.Pipeli
 	return ds.db.GetLatestPipelineRun(ctx)
 }
 
-// UpdatePipelineRunStatus updates a pipeline run's status
-func (ds *DataService) UpdatePipelineRunStatus(ctx context.Context, runID string, status models.PipelineRunStatus) error {
-	return ds.db.UpdatePipelineRunStatus(ctx, runID, status)
+// UpdatePipelineRunStatus updates a pipeline run's status and optional error message
+func (ds *DataService) UpdatePipelineRunStatus(ctx context.Context, runID string, status models.PipelineRunStatus, errorMessage string) error {
+	return ds.db.UpdatePipelineRunStatus(ctx, runID, status, errorMessage)
 }
 
 // UpdatePipelineRun updates a pipeline run

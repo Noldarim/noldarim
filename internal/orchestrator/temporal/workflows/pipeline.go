@@ -183,6 +183,15 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 		logger.Error(errMsg)
 		output.Error = errMsg
 		// SetupWorkflow already marked run as failed in DB
+
+		// Emit PipelineFailed event for real-time WebSocket notification
+		_ = workflow.ExecuteActivity(orchestratorCtx, "PublishPipelineFailedEventActivity",
+			types.PublishPipelineEventInput{
+				ProjectID: input.ProjectID,
+				RunID:     input.RunID,
+				Name:      input.Name,
+			}).Get(ctx, nil)
+
 		return output, fmt.Errorf("%s", errMsg)
 	}
 
@@ -570,13 +579,14 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 	return output, nil
 }
 
-// markPipelineRunFailed updates the pipeline run status to failed
+// markPipelineRunFailed updates the pipeline run status to failed with error message
 func markPipelineRunFailed(ctx workflow.Context, runID, errorMsg string) {
 	logger := workflow.GetLogger(ctx)
 	err := workflow.ExecuteActivity(ctx, "UpdatePipelineRunStatusActivity",
 		types.UpdatePipelineRunStatusActivityInput{
-			RunID:  runID,
-			Status: models.PipelineRunStatusFailed,
+			RunID:        runID,
+			Status:       models.PipelineRunStatusFailed,
+			ErrorMessage: errorMsg,
 		}).Get(ctx, nil)
 	if err != nil {
 		logger.Warn("Failed to mark pipeline run as failed", "error", err)

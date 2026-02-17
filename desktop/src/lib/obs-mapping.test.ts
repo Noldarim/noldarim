@@ -78,4 +78,38 @@ describe("mapActivitiesToSteps", () => {
     expect(mapped["step-b"]).toEqual([]);
     expect(mapped["step-c"]).toEqual([]);
   });
+
+  it("preserves step-2 events even when step_results only contains step-1", () => {
+    // Regression: the graph disappeared when step 1 finished because
+    // buckets were derived from step_results instead of draft steps.
+    const steps = [draft("step-1"), draft("step-2")];
+    const activities = [
+      event("evt-1", "step-1"),
+      event("evt-2", "step-2"),
+      event("evt-3", "step-2")
+    ];
+
+    const mapped = mapActivitiesToSteps(steps, activities);
+
+    expect(mapped["step-1"]).toHaveLength(1);
+    expect(mapped["step-2"]).toHaveLength(2);
+    expect(mapped["step-2"].map((e) => e.event_id)).toEqual(["evt-2", "evt-3"]);
+  });
+
+  it("unknown step IDs are ignored while known draft step IDs always have buckets", () => {
+    const steps = [draft("known-1"), draft("known-2")];
+    const activities = [
+      event("evt-1", "unknown-x"),
+      event("evt-2", "known-1"),
+      event("evt-3", "unknown-y")
+    ];
+
+    const mapped = mapActivitiesToSteps(steps, activities);
+
+    expect(Object.keys(mapped)).toEqual(["known-1", "known-2"]);
+    expect(mapped["known-1"]).toHaveLength(1);
+    expect(mapped["known-2"]).toEqual([]);
+    expect(mapped["unknown-x"]).toBeUndefined();
+    expect(mapped["unknown-y"]).toBeUndefined();
+  });
 });

@@ -2,14 +2,14 @@ import { useMemo } from "react";
 import { ReactFlow, Background, Controls, type Edge, type NodeTypes } from "@xyflow/react";
 
 import { PipelineRunStatus, StepStatus, stepStatusToView } from "../lib/types";
-import type { PipelineRun, StepDraft, StepResult } from "../lib/types";
-import { summarizeStepObservability, type StepActivityMap } from "../lib/obs-mapping";
-import { StepNode, type StepNodeData, type StepNodeType } from "./nodes/StepNode";
+import type { StepDraft, StepResult } from "../lib/types";
+import { summarizeStepObservability } from "../lib/obs-mapping";
+import type { StepActivityMap } from "../lib/obs-mapping";
+import { StepNode, type StepNodeType } from "./nodes/StepNode";
+import { useRunSteps, useStepExecutionMap, useActivitiesByStep } from "../state/selectors";
+import { useRunStore } from "../state/run-store";
 
 type Props = {
-  steps: StepDraft[];
-  run: PipelineRun | null;
-  activitiesByStep: StepActivityMap;
   selectedStepId: string | null;
   onSelectStep: (stepId: string) => void;
 };
@@ -31,9 +31,9 @@ function createLinearEdges(steps: StepDraft[]): Edge[] {
   return edges;
 }
 
-function unresolvedRunningStepIndex(steps: StepDraft[], stepResults: Map<string, StepResult>): number {
+function unresolvedRunningStepIndex(steps: StepDraft[], stepExecutionById: Record<string, StepResult>): number {
   for (let index = 0; index < steps.length; index += 1) {
-    const result = stepResults.get(steps[index].id);
+    const result = stepExecutionById[steps[index].id];
     if (!result) {
       return index;
     }
@@ -44,26 +44,23 @@ function unresolvedRunningStepIndex(steps: StepDraft[], stepResults: Map<string,
   return -1;
 }
 
-export function RunGraph({ steps, run, activitiesByStep, selectedStepId, onSelectStep }: Props) {
-  const stepResults = useMemo(() => {
-    const result = new Map<string, StepResult>();
-    for (const step of run?.step_results ?? []) {
-      result.set(step.step_id, step);
-    }
-    return result;
-  }, [run]);
+export function RunGraph({ selectedStepId, onSelectStep }: Props) {
+  const steps = useRunSteps();
+  const stepExecutionById = useStepExecutionMap();
+  const activitiesByStep = useActivitiesByStep();
+  const runStatus = useRunStore((s) => s.run?.status);
 
-  const fallbackRunningIndex = useMemo(() => unresolvedRunningStepIndex(steps, stepResults), [steps, stepResults]);
+  const fallbackRunningIndex = useMemo(() => unresolvedRunningStepIndex(steps, stepExecutionById), [steps, stepExecutionById]);
 
   const nodes = useMemo<StepNodeType[]>(() => {
     return steps.map((step, index) => {
-      const result = stepResults.get(step.id);
+      const result = stepExecutionById[step.id];
       const stepEvents = activitiesByStep[step.id] ?? [];
       const summary = summarizeStepObservability(stepEvents);
 
       const status = result
         ? stepStatusToView(result.status)
-        : run?.status === PipelineRunStatus.Running && index === fallbackRunningIndex
+        : runStatus === PipelineRunStatus.Running && index === fallbackRunningIndex
           ? "running"
           : "pending";
 
@@ -92,7 +89,7 @@ export function RunGraph({ steps, run, activitiesByStep, selectedStepId, onSelec
         draggable: false
       };
     });
-  }, [steps, stepResults, activitiesByStep, selectedStepId, run?.status, fallbackRunningIndex]);
+  }, [steps, stepExecutionById, activitiesByStep, selectedStepId, runStatus, fallbackRunningIndex]);
 
   const edges = useMemo(() => createLinearEdges(steps), [steps]);
 

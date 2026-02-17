@@ -228,8 +228,9 @@ type SaveStepResultActivityInput struct {
 
 // UpdatePipelineRunStatusActivityInput represents input for updating run status
 type UpdatePipelineRunStatusActivityInput struct {
-	RunID  string                    `json:"run_id"`
-	Status models.PipelineRunStatus  `json:"status"`
+	RunID        string                   `json:"run_id"`
+	Status       models.PipelineRunStatus `json:"status"`
+	ErrorMessage string                   `json:"error_message,omitempty"`
 }
 
 // GetPipelineRunActivityInput represents input for getting a pipeline run

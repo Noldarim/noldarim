@@ -285,13 +285,14 @@ func SetupWorkflow(ctx workflow.Context, input types.PipelineSetupInput) (*types
 	return output, nil
 }
 
-// markSetupFailed updates the pipeline run status to failed
+// markSetupFailed updates the pipeline run status to failed with error message
 func markSetupFailed(ctx workflow.Context, runID, errorMsg string) {
 	logger := workflow.GetLogger(ctx)
 	err := workflow.ExecuteActivity(ctx, "UpdatePipelineRunStatusActivity",
 		types.UpdatePipelineRunStatusActivityInput{
-			RunID:  runID,
-			Status: models.PipelineRunStatusFailed,
+			RunID:        runID,
+			Status:       models.PipelineRunStatusFailed,
+			ErrorMessage: errorMsg,
 		}).Get(ctx, nil)
 	if err != nil {
 		logger.Warn("Failed to mark pipeline run as failed", "error", err)

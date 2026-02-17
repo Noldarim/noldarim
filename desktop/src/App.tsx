@@ -3,23 +3,20 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   cancelPipeline,
   getAgentDefaults,
-  getPipelineRun,
-  getPipelineRunActivity,
   getProjects,
   startPipeline
 } from "./lib/api";
-import { mapActivitiesToSteps } from "./lib/obs-mapping";
 import { renderPipelineDraft } from "./lib/pipeline-templating";
 import { pipelineTemplates } from "./lib/templates";
-import { PipelineRunStatus } from "./lib/types";
-import type { AgentDefaults, AIActivityRecord, PipelineDraft, Project, WsEnvelope } from "./lib/types";
-import { connectPipelineStream, type WsConnection } from "./lib/ws";
+import type { AgentDefaults, PipelineDraft, Project } from "./lib/types";
 import { StepDetailsDrawer } from "./components/StepDetailsDrawer";
 import { PipelineForm } from "./components/PipelineForm";
 import { RunGraph } from "./components/RunGraph";
 import { RunToolbar } from "./components/RunToolbar";
 import { ServerSettings } from "./components/ServerSettings";
 import { useRunStore } from "./state/run-store";
+import { useRunConnection } from "./hooks/useRunConnection";
+import { useActivitiesByStep } from "./state/selectors";
 
 const serverUrlStorageKey = "noldarim.desktop.serverUrl";
 const defaultServerUrl = "http://127.0.0.1:8080";
@@ -41,155 +38,28 @@ export default function App() {
   const [agentDefaults, setAgentDefaults] = useState<AgentDefaults | null>(null);
   const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
 
-  const { state, actions } = useRunStore();
+  // Zustand store selectors
+  const phase = useRunStore((s) => s.phase);
+  const runId = useRunStore((s) => s.runId);
+  const steps = useRunStore((s) => s.runDefinition.steps);
+  const run = useRunStore((s) => s.run);
+  const error = useRunStore((s) => s.error);
+  const stepExecutionById = useRunStore((s) => s.stepExecutionById);
+  const activitiesByStep = useActivitiesByStep();
 
-  const wsRef = useRef<WsConnection | null>(null);
-  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const hydrateTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Actions from getState() are stable references — safe to destructure outside
+  // a selector hook. This avoids subscribing to action identity changes.
+  const { runStarted, wsConnected, runCancelling, runCancelled, runFailed, reset } = useRunStore.getState();
+
+  // Connection lifecycle hook — handles WS, polling, hydrations
+  const { startRealtime, closeRealtime, hydrateRun } = useRunConnection(serverUrl);
+
   const hasAutoConnectedRef = useRef<boolean>(false);
   const connectAbortRef = useRef<AbortController | null>(null);
-  // Tracks the current run ID for guarding tail hydrations against stale fetches.
-  const currentRunIdRef = useRef<string | null>(null);
-  currentRunIdRef.current = state.runId;
 
   const selectedStep = useMemo(
-    () => state.steps.find((step) => step.id === selectedStepId) ?? null,
-    [state.steps, selectedStepId]
-  );
-
-  const activitiesByStep = useMemo(
-    () => mapActivitiesToSteps(state.steps, state.activities),
-    [state.steps, state.activities]
-  );
-
-  const closeRealtime = useCallback(() => {
-    if (wsRef.current) {
-      wsRef.current.close();
-      wsRef.current = null;
-    }
-    if (pollRef.current) {
-      clearInterval(pollRef.current);
-      pollRef.current = null;
-    }
-    if (hydrateTimerRef.current) {
-      clearTimeout(hydrateTimerRef.current);
-      hydrateTimerRef.current = null;
-    }
-  }, []);
-
-  const hydrateRun = useCallback(
-    async (runId: string) => {
-      const [run, activityBatch] = await Promise.all([
-        getPipelineRun(serverUrl, runId),
-        getPipelineRunActivity(serverUrl, runId)
-      ]);
-      actions.setRunData(run);
-      actions.setActivities(activityBatch.Activities ?? []);
-      actions.setError(null);
-
-      if (run.status === PipelineRunStatus.Completed || run.status === PipelineRunStatus.Failed) {
-        closeRealtime();
-      }
-    },
-    [actions, closeRealtime, serverUrl]
-  );
-
-  // Post-completion tail hydrations: after the run enters a terminal phase,
-  // schedule a couple more fetches at short intervals to pick up any
-  // activity records that were still being flushed to the database when the
-  // main polling loop was torn down.
-  useEffect(() => {
-    if (
-      (state.phase === "completed" || state.phase === "failed") &&
-      state.runId
-    ) {
-      const runId = state.runId;
-      const timers = [2_000, 5_000].map((delay) =>
-        setTimeout(async () => {
-          // Guard: if a new run was started in the meantime, skip the stale fetch.
-          if (currentRunIdRef.current !== runId) {
-            return;
-          }
-          try {
-            const [run, activityBatch] = await Promise.all([
-              getPipelineRun(serverUrl, runId),
-              getPipelineRunActivity(serverUrl, runId)
-            ]);
-            if (currentRunIdRef.current !== runId) {
-              return;
-            }
-            actions.setRunData(run);
-            actions.setActivities(activityBatch.Activities ?? []);
-          } catch {
-            // Ignore errors during tail hydrations — run is already done.
-          }
-        }, delay)
-      );
-
-      return () => {
-        for (const timer of timers) {
-          clearTimeout(timer);
-        }
-      };
-    }
-  }, [state.phase, state.runId, actions, serverUrl]);
-
-  const scheduleHydrate = useCallback(
-    (runId: string) => {
-      if (hydrateTimerRef.current) {
-        return;
-      }
-      hydrateTimerRef.current = setTimeout(async () => {
-        hydrateTimerRef.current = null;
-        try {
-          await hydrateRun(runId);
-        } catch (error) {
-          // Don't surface to the UI — transient 404s (DB record not yet
-          // created) would flicker the error banner.  The background poll
-          // will retry and clear this naturally.
-          console.warn("[scheduleHydrate] hydration failed, will retry via poll:", error);
-        }
-      }, 250);
-    },
-    [hydrateRun]
-  );
-
-  const startRealtime = useCallback(
-    (projectId: string, runId: string) => {
-      closeRealtime();
-
-      wsRef.current = connectPipelineStream(
-        serverUrl,
-        projectId,
-        runId,
-        (message: WsEnvelope) => {
-          if (message.type === "error") {
-            actions.setError(message.message ?? "WebSocket error");
-            return;
-          }
-
-          if (message.event_type === "*models.AIActivityRecord" && message.payload) {
-            const p = message.payload as Record<string, unknown>;
-            if (typeof p.event_id === "string" && typeof p.event_type === "string") {
-              actions.appendActivity(p as unknown as AIActivityRecord);
-            }
-          }
-
-          scheduleHydrate(runId);
-        },
-        (errorMessage) => {
-          actions.setError(errorMessage);
-        }
-      );
-
-      // Background reconciliation poll — WS is the primary channel for real-time updates.
-      pollRef.current = setInterval(() => {
-        void hydrateRun(runId).catch((error) => {
-          actions.setError(messageFromError(error));
-        });
-      }, 10_000);
-    },
-    [actions, closeRealtime, hydrateRun, scheduleHydrate, serverUrl]
+    () => steps.find((step) => step.id === selectedStepId) ?? null,
+    [steps, selectedStepId]
   );
 
   const connect = useCallback(async () => {
@@ -199,7 +69,7 @@ export default function App() {
 
     setIsConnecting(true);
     setConnectionError(null);
-    actions.setError(null);
+    useRunStore.getState().reportError(null);
     try {
       const { signal } = controller;
       const [projectsPayload, defaults] = await Promise.all([
@@ -211,17 +81,17 @@ export default function App() {
       setSelectedProjectId((prev) => prev || normalizedProjects[0]?.id || "");
       setAgentDefaults(defaults);
       localStorage.setItem(serverUrlStorageKey, serverUrl);
-    } catch (error) {
+    } catch (err) {
       if (controller.signal.aborted) {
         return;
       }
-      setConnectionError(messageFromError(error));
+      setConnectionError(messageFromError(err));
     } finally {
       if (!controller.signal.aborted) {
         setIsConnecting(false);
       }
     }
-  }, [actions, serverUrl]);
+  }, [serverUrl]);
 
   useEffect(() => {
     if (!hasAutoConnectedRef.current) {
@@ -229,13 +99,6 @@ export default function App() {
       void connect();
     }
   }, [connect]);
-
-  useEffect(
-    () => () => {
-      closeRealtime();
-    },
-    [closeRealtime]
-  );
 
   const onStart = useCallback(
     async (draft: PipelineDraft) => {
@@ -247,8 +110,8 @@ export default function App() {
       }
 
       const rendered = renderPipelineDraft(draft);
-      closeRealtime(); // Clear any tail timers / WS from a previous run.
-      actions.startRun(selectedProjectId, rendered.name, rendered.steps);
+      closeRealtime();
+      runStarted(selectedProjectId, rendered.name, rendered.steps);
 
       let pipelineCreated = false;
       try {
@@ -269,55 +132,50 @@ export default function App() {
         });
 
         pipelineCreated = true;
-        actions.setRunStarted(result.RunID);
+        wsConnected(result.RunID);
         setSelectedStepId(rendered.steps[0]?.id ?? null);
 
-        // Start WS + poll immediately so real-time events flow while we wait
-        // for the Temporal workflow to create the DB record.
         startRealtime(selectedProjectId, result.RunID);
 
-        // Initial hydration with retry — the Temporal SetupWorkflow creates the
-        // DB record asynchronously, so early fetches may 404.
         const maxAttempts = 6;
         for (let attempt = 0; attempt < maxAttempts; attempt++) {
           try {
             await hydrateRun(result.RunID);
             break;
-          } catch (error) {
-            console.warn(`[onStart] initial hydration attempt ${attempt + 1}/${maxAttempts} failed:`, error);
+          } catch (err) {
+            console.warn(`[onStart] initial hydration attempt ${attempt + 1}/${maxAttempts} failed:`, err);
             if (attempt < maxAttempts - 1) {
               await new Promise((r) => setTimeout(r, 1_000 * (attempt + 1)));
             }
           }
         }
-      } catch (error) {
+      } catch (err) {
         if (!pipelineCreated) {
-          // Pipeline was never created on the server — safe to reset to idle.
-          actions.reset();
+          reset();
         }
-        throw error;
+        throw err;
       }
     },
-    [actions, agentDefaults, closeRealtime, hydrateRun, selectedProjectId, serverUrl, startRealtime]
+    [agentDefaults, closeRealtime, hydrateRun, runStarted, wsConnected, reset, selectedProjectId, serverUrl, startRealtime]
   );
 
   const onCancel = useCallback(async () => {
-    if (!state.runId) {
+    if (!runId) {
       return;
     }
 
-    actions.markCancelling();
+    runCancelling();
     try {
-      await cancelPipeline(serverUrl, state.runId);
-      actions.markCancelled();
+      await cancelPipeline(serverUrl, runId);
+      runCancelled();
       closeRealtime();
-      await hydrateRun(state.runId);
-    } catch (error) {
-      actions.markFailed(messageFromError(error));
+      await hydrateRun(runId);
+    } catch (err) {
+      runFailed(messageFromError(err));
     }
-  }, [actions, closeRealtime, hydrateRun, serverUrl, state.runId]);
+  }, [closeRealtime, hydrateRun, runCancelling, runCancelled, runFailed, serverUrl, runId]);
 
-  const runLocked = state.phase === "starting" || state.phase === "running" || state.phase === "cancelling";
+  const runLocked = phase === "starting" || phase === "running" || phase === "cancelling";
 
   return (
     <main className="app-shell">
@@ -359,15 +217,12 @@ export default function App() {
         </aside>
 
         <section className="center-column">
-          <RunToolbar runId={state.runId} phase={state.phase} onCancel={onCancel} />
+          <RunToolbar runId={runId} phase={phase} onCancel={onCancel} />
           <RunGraph
-            steps={state.steps}
-            run={state.run}
-            activitiesByStep={activitiesByStep}
             selectedStepId={selectedStepId}
             onSelectStep={setSelectedStepId}
           />
-          {state.error && <p className="error-text panel">{state.error}</p>}
+          {error && <p className="error-text panel">{error}</p>}
         </section>
       </div>
 
@@ -376,7 +231,7 @@ export default function App() {
         step={selectedStep}
         result={
           selectedStep
-            ? state.run?.step_results?.find((r) => r.step_id === selectedStep.id) ?? null
+            ? stepExecutionById[selectedStep.id] ?? null
             : null
         }
         events={selectedStep ? activitiesByStep[selectedStep.id] ?? [] : []}

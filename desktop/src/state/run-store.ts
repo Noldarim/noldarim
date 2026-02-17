@@ -1,30 +1,54 @@
-import { useMemo, useState } from "react";
+import { create } from "zustand";
+
 import { PipelineRunStatus } from "../lib/types";
-import type { AIActivityRecord, PipelineRun, StepDraft } from "../lib/types";
+import type { AIActivityRecord, PipelineRun, StepDraft, StepResult } from "../lib/types";
 
 export type RunPhase = "idle" | "starting" | "running" | "cancelling" | "completed" | "failed" | "cancelled";
 
+export type ConnectionStatus = "idle" | "connecting" | "streaming" | "terminal" | "error";
+
+export type RunDefinition = {
+  steps: StepDraft[];
+  pipelineName: string;
+};
+
 export type RunState = {
   phase: RunPhase;
+  connectionStatus: ConnectionStatus;
   runId: string | null;
   projectId: string | null;
-  pipelineName: string;
-  steps: StepDraft[];
+  runDefinition: RunDefinition;
   run: PipelineRun | null;
-  activities: AIActivityRecord[];
-  activityIds: Set<string>;
+  stepExecutionById: Record<string, StepResult>;
+  activityByEventId: Record<string, AIActivityRecord>;
+  activityByStepId: Record<string, AIActivityRecord[]>;
   error: string | null;
 };
 
+export type RunActions = {
+  runStarted: (projectId: string, pipelineName: string, steps: StepDraft[]) => void;
+  wsConnected: (runId: string) => void;
+  wsActivityReceived: (activity: AIActivityRecord) => void;
+  snapshotApplied: (run: PipelineRun, activities: AIActivityRecord[]) => void;
+  runCancelling: () => void;
+  runCancelled: () => void;
+  runFailed: (message: string) => void;
+  reportError: (message: string | null) => void;
+  reset: () => void;
+};
+
+const emptyDefinition: RunDefinition = { steps: [], pipelineName: "" };
+
 const initialState: RunState = {
   phase: "idle",
+  connectionStatus: "idle",
   runId: null,
   projectId: null,
-  pipelineName: "",
-  steps: [],
+  runDefinition: emptyDefinition,
   run: null,
-  activities: [],
-  activityIds: new Set(),
+  stepExecutionById: {},
+  activityByEventId: {},
+  activityByStepId: {},
   error: null
 };
 
@@ -38,89 +62,131 @@ function phaseFromStatus(status: PipelineRunStatus): RunPhase {
   return "running";
 }
 
-export function useRunStore() {
-  const [state, setState] = useState<RunState>(initialState);
-
-  // Empty deps: actions are stable across renders because setState is stable.
-  const actions = useMemo(
-    () => ({
-      reset: () => setState(initialState),
-      setError: (error: string | null) => {
-        setState((prev) => ({ ...prev, error }));
-      },
-      startRun: (projectId: string, pipelineName: string, steps: StepDraft[]) => {
-        setState((prev) => ({
-          ...prev,
-          phase: "starting",
-          projectId,
-          pipelineName,
-          steps,
-          runId: null,
-          run: null,
-          activities: [],
-          activityIds: new Set(),
-          error: null
-        }));
-      },
-      setRunStarted: (runId: string) => {
-        setState((prev) => ({
-          ...prev,
-          phase: "running",
-          runId
-        }));
-      },
-      setRunData: (run: PipelineRun) => {
-        setState((prev) => {
-          const phase =
-            prev.phase === "cancelling" || prev.phase === "cancelled"
-              ? prev.phase
-              : phaseFromStatus(run.status);
-          const error =
-            phase === "failed" && run.error_message ? run.error_message : prev.error;
-          return { ...prev, run, phase, error };
-        });
-      },
-      setActivities: (newActivities: AIActivityRecord[]) => {
-        setState((prev) => {
-          // Merge instead of replace: keep any WS-delivered or previously
-          // fetched activities that might not yet appear in the API response
-          // (e.g. async activity flush after step completion).
-          const merged = new Map<string, AIActivityRecord>();
-          for (const a of prev.activities) {
-            merged.set(a.event_id, a);
-          }
-          for (const a of newActivities) {
-            merged.set(a.event_id, a);
-          }
-          return {
-            ...prev,
-            activities: [...merged.values()],
-            activityIds: new Set(merged.keys())
-          };
-        });
-      },
-      appendActivity: (activity: AIActivityRecord) => {
-        setState((prev) => {
-          if (prev.activityIds.has(activity.event_id)) {
-            return prev;
-          }
-          const nextIds = new Set(prev.activityIds);
-          nextIds.add(activity.event_id);
-          return { ...prev, activities: [...prev.activities, activity], activityIds: nextIds };
-        });
-      },
-      markCancelling: () => {
-        setState((prev) => ({ ...prev, phase: "cancelling" }));
-      },
-      markCancelled: () => {
-        setState((prev) => ({ ...prev, phase: "cancelled" }));
-      },
-      markFailed: (message: string) => {
-        setState((prev) => ({ ...prev, phase: "failed", error: message }));
-      }
-    }),
-    []
-  );
-
-  return { state, actions };
+function buildStepExecutionMap(run: PipelineRun): Record<string, StepResult> {
+  const map: Record<string, StepResult> = {};
+  for (const sr of run.step_results ?? []) {
+    map[sr.step_id] = sr;
+  }
+  return map;
 }
+
+function rebuildActivityByStepId(
+  activityByEventId: Record<string, AIActivityRecord>,
+  draftStepIds: Set<string>
+): Record<string, AIActivityRecord[]> {
+  const result: Record<string, AIActivityRecord[]> = {};
+  for (const stepId of draftStepIds) {
+    result[stepId] = [];
+  }
+  for (const activity of Object.values(activityByEventId)) {
+    const stepId = activity.step_id;
+    if (stepId && result[stepId]) {
+      result[stepId].push(activity);
+    }
+  }
+  return result;
+}
+
+function mergeActivities(
+  existing: Record<string, AIActivityRecord>,
+  incoming: AIActivityRecord[]
+): Record<string, AIActivityRecord> {
+  if (incoming.length === 0) {
+    return existing;
+  }
+  const merged = { ...existing };
+  for (const a of incoming) {
+    merged[a.event_id] = a;
+  }
+  return merged;
+}
+
+export const useRunStore = create<RunState & RunActions>()((set) => ({
+  ...initialState,
+
+  runStarted: (projectId, pipelineName, steps) =>
+    set({
+      phase: "starting",
+      connectionStatus: "connecting",
+      projectId,
+      runDefinition: { steps, pipelineName },
+      runId: null,
+      run: null,
+      stepExecutionById: {},
+      activityByEventId: {},
+      activityByStepId: Object.fromEntries(steps.map((s) => [s.id, []])),
+      error: null
+    }),
+
+  wsConnected: (runId) =>
+    set({
+      phase: "running",
+      connectionStatus: "streaming",
+      runId
+    }),
+
+  wsActivityReceived: (activity) =>
+    set((prev) => {
+      if (prev.activityByEventId[activity.event_id]) {
+        return prev;
+      }
+      const activityByEventId = { ...prev.activityByEventId, [activity.event_id]: activity };
+      const stepId = activity.step_id;
+      let activityByStepId = prev.activityByStepId;
+      if (stepId && activityByStepId[stepId]) {
+        activityByStepId = {
+          ...activityByStepId,
+          [stepId]: [...activityByStepId[stepId], activity]
+        };
+      }
+      return { activityByEventId, activityByStepId };
+    }),
+
+  snapshotApplied: (run, activities) =>
+    set((prev) => {
+      // Guard: if no prior snapshot has been applied (prev.run is null), skip
+      // terminal status — the DB may still hold a stale record from a previous
+      // run that shared the same deterministic run ID.
+      const isFirstSnapshot = prev.run === null;
+      const incomingTerminal =
+        run.status === PipelineRunStatus.Completed || run.status === PipelineRunStatus.Failed;
+
+      const phase =
+        prev.phase === "cancelling" || prev.phase === "cancelled"
+          ? prev.phase
+          : isFirstSnapshot && incomingTerminal
+            ? prev.phase
+            : phaseFromStatus(run.status);
+
+      const error =
+        phase === "failed" && run.error_message ? run.error_message : prev.error;
+
+      const stepExecutionById = buildStepExecutionMap(run);
+      const activityByEventId = mergeActivities(prev.activityByEventId, activities);
+      const draftStepIds = new Set(prev.runDefinition.steps.map((s) => s.id));
+      const activityByStepId = rebuildActivityByStepId(activityByEventId, draftStepIds);
+
+      return {
+        run,
+        phase,
+        error,
+        stepExecutionById,
+        activityByEventId,
+        activityByStepId
+      };
+    }),
+
+  runCancelling: () =>
+    set({ phase: "cancelling" }),
+
+  runCancelled: () =>
+    set({ phase: "cancelled", connectionStatus: "terminal" }),
+
+  runFailed: (message) =>
+    set({ phase: "failed", error: message, connectionStatus: "terminal" }),
+
+  reportError: (message) =>
+    set({ error: message, connectionStatus: message ? "error" : "idle" }),
+
+  reset: () => set(initialState)
+}));

@@ -1,3 +1,4 @@
+import { memo } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 
 import type { StepStatusView } from "../../lib/types";
@@ -27,7 +28,7 @@ const statusLabel: Record<StepStatusView, string> = {
   skipped: "Skipped"
 };
 
-export function StepNode({ data }: NodeProps<StepNodeType>) {
+export const StepNode = memo(function StepNode({ data }: NodeProps<StepNodeType>) {
   return (
     <div className={`step-node step-node--${data.status}`}>
       <Handle type="target" position={Position.Left} />
@@ -67,4 +68,4 @@ export function StepNode({ data }: NodeProps<StepNodeType>) {
       <Handle type="source" position={Position.Right} />
     </div>
   );
-}
+});

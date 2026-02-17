@@ -118,7 +118,7 @@ func (a *PipelineDataActivities) UpdatePipelineRunStatusActivity(ctx context.Con
 
 	activity.RecordHeartbeat(ctx, "Updating pipeline run status")
 
-	if err := a.dataService.UpdatePipelineRunStatus(ctx, input.RunID, input.Status); err != nil {
+	if err := a.dataService.UpdatePipelineRunStatus(ctx, input.RunID, input.Status, input.ErrorMessage); err != nil {
 		logger.Error("Failed to update pipeline run status", "error", err)
 		return fmt.Errorf("failed to update pipeline run status: %w", err)
 	}
