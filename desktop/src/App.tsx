@@ -57,12 +57,10 @@ export default function App() {
     [state.steps, selectedStepId]
   );
 
-  const activitiesByStep = useMemo(() => {
-    if (!state.run) {
-      return {};
-    }
-    return mapActivitiesToSteps(state.run, state.activities);
-  }, [state.run, state.activities]);
+  const activitiesByStep = useMemo(
+    () => mapActivitiesToSteps(state.steps, state.activities),
+    [state.steps, state.activities]
+  );
 
   const closeRealtime = useCallback(() => {
     if (wsRef.current) {
@@ -87,6 +85,7 @@ export default function App() {
       ]);
       actions.setRunData(run);
       actions.setActivities(activityBatch.Activities ?? []);
+      actions.setError(null);
 
       if (run.status === PipelineRunStatus.Completed || run.status === PipelineRunStatus.Failed) {
         closeRealtime();
@@ -145,11 +144,14 @@ export default function App() {
         try {
           await hydrateRun(runId);
         } catch (error) {
-          actions.setError(messageFromError(error));
+          // Don't surface to the UI — transient 404s (DB record not yet
+          // created) would flicker the error banner.  The background poll
+          // will retry and clear this naturally.
+          console.warn("[scheduleHydrate] hydration failed, will retry via poll:", error);
         }
       }, 250);
     },
-    [actions, hydrateRun]
+    [hydrateRun]
   );
 
   const startRealtime = useCallback(
@@ -270,14 +272,24 @@ export default function App() {
         actions.setRunStarted(result.RunID);
         setSelectedStepId(rendered.steps[0]?.id ?? null);
 
-        // Initial hydration — errors here are non-fatal because the poll will retry.
-        try {
-          await hydrateRun(result.RunID);
-        } catch (hydrateError) {
-          actions.setError(messageFromError(hydrateError));
-        }
-
+        // Start WS + poll immediately so real-time events flow while we wait
+        // for the Temporal workflow to create the DB record.
         startRealtime(selectedProjectId, result.RunID);
+
+        // Initial hydration with retry — the Temporal SetupWorkflow creates the
+        // DB record asynchronously, so early fetches may 404.
+        const maxAttempts = 6;
+        for (let attempt = 0; attempt < maxAttempts; attempt++) {
+          try {
+            await hydrateRun(result.RunID);
+            break;
+          } catch (error) {
+            console.warn(`[onStart] initial hydration attempt ${attempt + 1}/${maxAttempts} failed:`, error);
+            if (attempt < maxAttempts - 1) {
+              await new Promise((r) => setTimeout(r, 1_000 * (attempt + 1)));
+            }
+          }
+        }
       } catch (error) {
         if (!pipelineCreated) {
           // Pipeline was never created on the server — safe to reset to idle.

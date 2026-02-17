@@ -67,6 +67,10 @@ func (db *GormDB) ValidateSchema() error {
 		missingTables = append(missingTables, "tasks")
 	}
 
+	if !db.db.Migrator().HasTable(&models.AIActivityRecord{}) {
+		missingTables = append(missingTables, "ai_activity_records")
+	}
+
 	if len(missingTables) > 0 {
 		return fmt.Errorf("missing tables: %v\n\n💡 Run 'make migrate' to create the required tables", missingTables)
 	}
@@ -87,6 +91,17 @@ func (db *GormDB) ValidateSchema() error {
 	for _, col := range taskColumns {
 		if !db.db.Migrator().HasColumn(&models.Task{}, col) {
 			missingColumns = append(missingColumns, fmt.Sprintf("tasks.%s", col))
+		}
+	}
+
+	// Check for required columns in ai_activity_records table
+	// run_id and step_id are required for real-time pipeline activity streaming.
+	aiActivityColumns := []string{
+		"event_id", "task_id", "run_id", "step_id", "event_type", "timestamp", "raw_payload",
+	}
+	for _, col := range aiActivityColumns {
+		if !db.db.Migrator().HasColumn(&models.AIActivityRecord{}, col) {
+			missingColumns = append(missingColumns, fmt.Sprintf("ai_activity_records.%s", col))
 		}
 	}
 

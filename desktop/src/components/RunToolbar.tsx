@@ -41,9 +41,11 @@ export function RunToolbar({ runId, phase, onCancel }: Props) {
           <span className="muted-text">Status:</span> {readablePhase(phase)}
         </p>
       </div>
-      <button type="button" onClick={onCancel} disabled={!canCancel} className="danger-button">
-        Cancel Run
-      </button>
+      {canCancel && (
+        <button type="button" onClick={onCancel} className="danger-button">
+          Cancel Run
+        </button>
+      )}
     </section>
   );
 }

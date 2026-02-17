@@ -1,4 +1,4 @@
-import type { AIActivityRecord, PipelineRun, StepResult } from "./types";
+import type { AIActivityRecord, StepDraft } from "./types";
 
 export type StepActivityMap = Record<string, AIActivityRecord[]>;
 
@@ -12,23 +12,20 @@ export type ToolGroup = {
   };
 };
 
-function sortedStepResults(run: PipelineRun): StepResult[] {
-  return [...(run.step_results ?? [])].sort((a, b) => a.step_index - b.step_index);
-}
-
 /**
  * Maps AI activity events to their corresponding pipeline steps using the step_id field.
+ * Buckets are always initialised from `steps` (the draft definitions) so that every
+ * step has an entry even before its StepResult appears in `run.step_results`.
  * Events without a step_id (legacy data) are excluded gracefully.
  */
 export function mapActivitiesToSteps(
-  run: PipelineRun,
+  steps: StepDraft[],
   activities: AIActivityRecord[]
 ): StepActivityMap {
-  const results = sortedStepResults(run);
   const mapped: StepActivityMap = {};
 
-  for (const step of results) {
-    mapped[step.step_id] = [];
+  for (const step of steps) {
+    mapped[step.id] = [];
   }
 
   for (const event of activities) {

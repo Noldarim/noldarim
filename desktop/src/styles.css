@@ -75,6 +75,7 @@ p {
 .center-column {
   display: grid;
   gap: 1rem;
+  min-width: 0;
 }
 
 .panel {
@@ -179,6 +180,7 @@ select {
   padding: 0.45rem 0.55rem;
   background: #fff;
   color: var(--ink);
+  width: 100%;
 }
 
 textarea {
