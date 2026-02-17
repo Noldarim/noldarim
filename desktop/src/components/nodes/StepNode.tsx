@@ -4,6 +4,7 @@ import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import type { StepStatusView } from "../../lib/types";
 
 export type StepNodeData = {
+  runId: string | null;
   stepId: string;
   stepName: string;
   index: number;

@@ -6,6 +6,7 @@ import type {
   CancelPipelineResult,
   PipelineRun,
   PipelineRunResult,
+  PipelineRunsLoadedEvent,
   ProjectsLoadedEvent,
   StartPipelineRequest
 } from "./types";
@@ -15,6 +16,7 @@ import {
   CancelPipelineResultSchema,
   PipelineRunResultSchema,
   PipelineRunSchema,
+  PipelineRunsLoadedEventSchema,
   ProjectsLoadedEventSchema
 } from "./schemas";
 
@@ -67,6 +69,10 @@ export async function startPipeline(
     method: "POST",
     body: JSON.stringify(payload)
   });
+}
+
+export async function listPipelineRuns(baseUrl: string, projectId: string, init?: RequestInit): Promise<PipelineRunsLoadedEvent> {
+  return requestJson(baseUrl, `/api/v1/projects/${encodeURIComponent(projectId)}/pipelines`, PipelineRunsLoadedEventSchema, init);
 }
 
 export async function getPipelineRun(baseUrl: string, runId: string): Promise<PipelineRun> {

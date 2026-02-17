@@ -320,6 +320,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 			ID:             stepResultID,
 			PipelineRunID:  input.RunID,
 			StepID:         stepDef.StepID,
+			StepName:       stepDef.Name,
 			StepIndex:      i,
 			Status:         models.StepStatusRunning,
 			DefinitionHash: models.ComputeStepDefinitionHash(stepDef), // For fork comparison

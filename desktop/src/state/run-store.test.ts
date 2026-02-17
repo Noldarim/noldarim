@@ -8,14 +8,15 @@ const steps: StepDraft[] = [
   { id: "step-2", name: "Step 2", prompt: "do step 2" }
 ];
 
-function activity(eventId: string, stepId?: string): AIActivityRecord {
+function activity(eventId: string, stepId?: string, overrides: Partial<AIActivityRecord> = {}): AIActivityRecord {
   return {
     event_id: eventId,
     task_id: "task-1",
     run_id: "run-1",
     step_id: stepId,
     event_type: "tool_use",
-    timestamp: "2026-02-14T10:00:00Z"
+    timestamp: "2026-02-14T10:00:00Z",
+    ...overrides
   };
 }
 
@@ -106,6 +107,17 @@ describe("wsActivityReceived", () => {
     expect(s.activityByStepId["step-1"]).toEqual([]);
     expect(s.activityByStepId["step-2"]).toEqual([]);
   });
+
+  it("keeps step activity sorted chronologically even when events arrive out of order", () => {
+    const { runStarted, wsActivityReceived } = useRunStore.getState();
+
+    runStarted("proj-1", "P", steps);
+    wsActivityReceived(activity("evt-late", "step-1", { timestamp: "2026-02-14T10:00:02Z" }));
+    wsActivityReceived(activity("evt-early", "step-1", { timestamp: "2026-02-14T10:00:01Z" }));
+
+    const events = useRunStore.getState().activityByStepId["step-1"];
+    expect(events.map((e) => e.event_id)).toEqual(["evt-early", "evt-late"]);
+  });
 });
 
 describe("snapshotApplied", () => {
@@ -126,6 +138,23 @@ describe("snapshotApplied", () => {
     expect(s.activityByStepId["step-1"]).toHaveLength(1);
     expect(s.activityByStepId["step-2"]).toHaveLength(1);
     expect(s.phase).toBe("running");
+  });
+
+  it("re-sorts merged WS and API activities by timestamp", () => {
+    const { runStarted, wsConnected, wsActivityReceived, snapshotApplied } = useRunStore.getState();
+
+    runStarted("proj-1", "P", steps);
+    wsConnected("run-1");
+    wsActivityReceived(activity("ws-late", "step-1", { timestamp: "2026-02-14T10:00:02Z" }));
+
+    const run = makeRun({ status: 1 });
+    snapshotApplied(run, [
+      activity("api-early", "step-1", { timestamp: "2026-02-14T10:00:01Z" }),
+      activity("api-mid", "step-1", { timestamp: "2026-02-14T10:00:01.500Z" })
+    ]);
+
+    const events = useRunStore.getState().activityByStepId["step-1"];
+    expect(events.map((e) => e.event_id)).toEqual(["api-early", "api-mid", "ws-late"]);
   });
 
   it("builds stepExecutionById from run.step_results", () => {

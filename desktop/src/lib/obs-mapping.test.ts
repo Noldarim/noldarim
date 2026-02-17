@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { mapActivitiesToSteps } from "./obs-mapping";
+import { mapActivitiesToSteps, groupToolEventsByName } from "./obs-mapping";
 import type { AIActivityRecord, StepDraft } from "./types";
 
 function event(id: string, stepId?: string): AIActivityRecord {
@@ -111,5 +111,71 @@ describe("mapActivitiesToSteps", () => {
     expect(mapped["known-2"]).toEqual([]);
     expect(mapped["unknown-x"]).toBeUndefined();
     expect(mapped["unknown-y"]).toBeUndefined();
+  });
+});
+
+function toolUse(id: string, toolName: string, input?: string): AIActivityRecord {
+  return {
+    event_id: id,
+    task_id: "run-1",
+    run_id: "run-1",
+    event_type: "tool_use",
+    timestamp: `2026-02-14T10:00:0${id.slice(-1)}Z`,
+    tool_name: toolName,
+    tool_input_summary: input
+  };
+}
+
+function toolResult(id: string, toolName: string, success: boolean): AIActivityRecord {
+  return {
+    event_id: id,
+    task_id: "run-1",
+    run_id: "run-1",
+    event_type: "tool_result",
+    timestamp: `2026-02-14T10:00:1${id.slice(-1)}Z`,
+    tool_name: toolName,
+    tool_success: success
+  };
+}
+
+describe("groupToolEventsByName", () => {
+  it("groups tool calls by tool name", () => {
+    const events = [
+      toolUse("e1", "bash", "ls"),
+      toolUse("e2", "Read", "main.go"),
+      toolUse("e3", "bash", "go build"),
+      toolResult("e4", "bash", true),
+      toolResult("e5", "Read", true),
+      toolResult("e6", "bash", true)
+    ];
+
+    const groups = groupToolEventsByName(events);
+    expect(groups).toHaveLength(2);
+    expect(groups[0].toolName).toBe("bash");
+    expect(groups[0].calls).toHaveLength(2);
+    expect(groups[1].toolName).toBe("Read");
+    expect(groups[1].calls).toHaveLength(1);
+  });
+
+  it("returns empty array for no tool events", () => {
+    const events: AIActivityRecord[] = [
+      { event_id: "e1", task_id: "t1", run_id: "r1", event_type: "thinking", timestamp: "2026-02-14T10:00:00Z" }
+    ];
+    expect(groupToolEventsByName(events)).toEqual([]);
+  });
+
+  it("preserves call order within each group", () => {
+    const events = [
+      toolUse("e1", "bash", "first"),
+      toolUse("e2", "bash", "second"),
+      toolResult("e3", "bash", true),
+      toolResult("e4", "bash", false)
+    ];
+
+    const groups = groupToolEventsByName(events);
+    expect(groups[0].calls[0].input).toBe("first");
+    expect(groups[0].calls[0].result?.success).toBe(true);
+    expect(groups[0].calls[1].input).toBe("second");
+    expect(groups[0].calls[1].result?.success).toBe(false);
   });
 });

@@ -30,6 +30,7 @@ export type RunActions = {
   wsConnected: (runId: string) => void;
   wsActivityReceived: (activity: AIActivityRecord) => void;
   snapshotApplied: (run: PipelineRun, activities: AIActivityRecord[]) => void;
+  viewHistoricalRun: (run: PipelineRun, activities: AIActivityRecord[]) => void;
   runCancelling: () => void;
   runCancelled: () => void;
   runFailed: (message: string) => void;
@@ -52,6 +53,16 @@ const initialState: RunState = {
   error: null
 };
 
+function stepsFromStepResults(stepResults: StepResult[]): StepDraft[] {
+  return [...stepResults]
+    .sort((a, b) => a.step_index - b.step_index)
+    .map((sr) => ({
+      id: sr.step_id,
+      name: sr.step_name || sr.step_id,
+      prompt: ""
+    }));
+}
+
 function phaseFromStatus(status: PipelineRunStatus): RunPhase {
   if (status === PipelineRunStatus.Completed) {
     return "completed";
@@ -70,6 +81,24 @@ function buildStepExecutionMap(run: PipelineRun): Record<string, StepResult> {
   return map;
 }
 
+function compareActivitiesByTimestamp(a: AIActivityRecord, b: AIActivityRecord): number {
+  const aTime = Date.parse(a.timestamp);
+  const bTime = Date.parse(b.timestamp);
+  const aValid = !Number.isNaN(aTime);
+  const bValid = !Number.isNaN(bTime);
+
+  if (aValid && bValid && aTime !== bTime) {
+    return aTime - bTime;
+  }
+  if (aValid && !bValid) {
+    return -1;
+  }
+  if (!aValid && bValid) {
+    return 1;
+  }
+  return a.event_id.localeCompare(b.event_id);
+}
+
 function rebuildActivityByStepId(
   activityByEventId: Record<string, AIActivityRecord>,
   draftStepIds: Set<string>
@@ -83,6 +112,9 @@ function rebuildActivityByStepId(
     if (stepId && result[stepId]) {
       result[stepId].push(activity);
     }
+  }
+  for (const events of Object.values(result)) {
+    events.sort(compareActivitiesByTimestamp);
   }
   return result;
 }
@@ -134,9 +166,10 @@ export const useRunStore = create<RunState & RunActions>()((set) => ({
       const stepId = activity.step_id;
       let activityByStepId = prev.activityByStepId;
       if (stepId && activityByStepId[stepId]) {
+        const sortedEvents = [...activityByStepId[stepId], activity].sort(compareActivitiesByTimestamp);
         activityByStepId = {
           ...activityByStepId,
-          [stepId]: [...activityByStepId[stepId], activity]
+          [stepId]: sortedEvents
         };
       }
       return { activityByEventId, activityByStepId };
@@ -173,6 +206,29 @@ export const useRunStore = create<RunState & RunActions>()((set) => ({
         stepExecutionById,
         activityByEventId,
         activityByStepId
+      };
+    }),
+
+  viewHistoricalRun: (run, activities) =>
+    set(() => {
+      const steps = stepsFromStepResults(run.step_results ?? []);
+      const stepExecutionById = buildStepExecutionMap(run);
+      const draftStepIds = new Set(steps.map((s) => s.id));
+      const activityByEventId = mergeActivities({}, activities);
+      const activityByStepId = rebuildActivityByStepId(activityByEventId, draftStepIds);
+      const phase = phaseFromStatus(run.status);
+
+      return {
+        phase,
+        connectionStatus: "terminal",
+        runId: run.id,
+        projectId: run.project_id,
+        runDefinition: { steps, pipelineName: run.name },
+        run,
+        stepExecutionById,
+        activityByEventId,
+        activityByStepId,
+        error: run.error_message || null
       };
     }),
 

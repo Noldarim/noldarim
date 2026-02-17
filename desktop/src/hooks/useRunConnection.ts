@@ -8,10 +8,7 @@ import type { AIActivityRecord, WsEnvelope } from "../lib/types";
 import { connectPipelineStream, type WsConnection } from "../lib/ws";
 import { useRunStore } from "../state/run-store";
 import { incrementReconnectCount, recordHydrateLatency } from "../lib/debug";
-
-function messageFromError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error";
-}
+import { messageFromError } from "../lib/formatting";
 
 export function useRunConnection(serverUrl: string) {
   const wsRef = useRef<WsConnection | null>(null);

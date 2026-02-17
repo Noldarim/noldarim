@@ -184,6 +184,7 @@ type StepResult struct {
 	ID            string     `gorm:"primaryKey;type:text" json:"id"`
 	PipelineRunID string     `gorm:"type:text;index;not null" json:"pipeline_run_id"`
 	StepID        string     `gorm:"type:text;not null" json:"step_id"` // Matches StepDefinition.StepID
+	StepName      string     `gorm:"type:text" json:"step_name"`        // Human-readable name from StepDefinition
 	StepIndex     int        `gorm:"type:integer" json:"step_index"`    // Order of execution (0, 1, 2...)
 	Status        StepStatus `gorm:"not null;default:0" json:"status"`
 

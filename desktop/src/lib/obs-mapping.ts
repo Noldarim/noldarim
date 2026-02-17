@@ -78,6 +78,18 @@ export function groupToolEvents(events: AIActivityRecord[]): ToolGroup[] {
   return groups;
 }
 
+export type ToolNameGroup = { toolName: string; calls: ToolGroup[] };
+
+export function groupToolEventsByName(events: AIActivityRecord[]): ToolNameGroup[] {
+  const toolGroups = groupToolEvents(events);
+  const byName = new Map<string, ToolGroup[]>();
+  for (const group of toolGroups) {
+    const existing = byName.get(group.toolName);
+    existing ? existing.push(group) : byName.set(group.toolName, [group]);
+  }
+  return Array.from(byName.entries()).map(([toolName, calls]) => ({ toolName, calls }));
+}
+
 export function summarizeStepObservability(events: AIActivityRecord[]): {
   eventCount: number;
   toolUseCount: number;

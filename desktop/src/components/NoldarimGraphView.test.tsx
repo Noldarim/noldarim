@@ -1,15 +1,46 @@
-import { act, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it } from "vitest";
+import { act, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { RunGraph } from "./RunGraph";
+import { NoldarimGraphView } from "./NoldarimGraphView";
 import { StepDetailsDrawer } from "./StepDetailsDrawer";
-import type { PipelineRun, StepDraft } from "../lib/types";
+import { listPipelineRuns, getPipelineRun, getPipelineRunActivity } from "../lib/api";
+import type { PipelineRun, PipelineRunsLoadedEvent, StepDraft } from "../lib/types";
 import { useRunStore } from "../state/run-store";
+import { useProjectGraphStore } from "../state/project-graph-store";
+
+vi.mock("../lib/api", () => ({
+  listPipelineRuns: vi.fn(),
+  getPipelineRun: vi.fn(),
+  getPipelineRunActivity: vi.fn()
+}));
 
 const steps: StepDraft[] = [
   { id: "analyze", name: "Analyze", prompt: "Analyze changes" },
   { id: "implement", name: "Implement", prompt: "Implement changes" }
 ];
+
+const mockedListPipelineRuns = vi.mocked(listPipelineRuns);
+const mockedGetPipelineRun = vi.mocked(getPipelineRun);
+const mockedGetPipelineRunActivity = vi.mocked(getPipelineRunActivity);
+
+function makeRunsPayload(projectId: string, runs: PipelineRun[]): PipelineRunsLoadedEvent {
+  return {
+    ProjectID: projectId,
+    ProjectName: projectId,
+    RepositoryPath: "/tmp/project",
+    Runs: Object.fromEntries(runs.map((run) => [run.id, run]))
+  };
+}
+
+function deferred<T>() {
+  let resolve!: (value: T) => void;
+  let reject!: (reason?: unknown) => void;
+  const promise = new Promise<T>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
 
 function setupStore(storeSteps: StepDraft[], run: PipelineRun | null) {
   act(() => {
@@ -27,16 +58,36 @@ function renderGraph(run: PipelineRun | null, overrides?: { steps?: StepDraft[] 
   setupStore(s, run);
   render(
     <div style={{ width: "1200px", height: "700px" }}>
-      <RunGraph selectedStepId={null} onSelectStep={() => {}} />
+      <NoldarimGraphView projectId="proj-1" serverUrl="http://localhost:8080" selectedStep={null} onSelectStep={() => {}} onDeselectStep={() => {}} />
     </div>
   );
 }
 
-afterEach(() => {
+beforeEach(() => {
+  mockedListPipelineRuns.mockResolvedValue(makeRunsPayload("proj-1", []));
+  mockedGetPipelineRun.mockResolvedValue({
+    id: "run-1",
+    project_id: "proj-1",
+    name: "Pipeline",
+    status: 2,
+    step_results: []
+  });
+  mockedGetPipelineRunActivity.mockResolvedValue({
+    TaskID: "task-1",
+    ProjectID: "proj-1",
+    Activities: []
+  });
   useRunStore.getState().reset();
+  useProjectGraphStore.getState().reset();
 });
 
-describe("RunGraph", () => {
+afterEach(() => {
+  vi.clearAllMocks();
+  useRunStore.getState().reset();
+  useProjectGraphStore.getState().reset();
+});
+
+describe("NoldarimGraphView", () => {
   it("renders pending nodes before run data arrives", () => {
     renderGraph(null);
 
@@ -192,6 +243,60 @@ describe("RunGraph", () => {
     expect(screen.getByText("Implement")).toBeInTheDocument();
     expect(screen.getByText("Completed")).toBeInTheDocument();
     expect(screen.getByText("Running")).toBeInTheDocument();
+  });
+
+  it("ignores stale project-run responses when switching projects quickly", async () => {
+    const first = deferred<PipelineRunsLoadedEvent>();
+    const second = deferred<PipelineRunsLoadedEvent>();
+
+    mockedListPipelineRuns.mockImplementation((_baseUrl, projectId) => {
+      if (projectId === "proj-1") {
+        return first.promise;
+      }
+      if (projectId === "proj-2") {
+        return second.promise;
+      }
+      return Promise.resolve(makeRunsPayload(projectId, []));
+    });
+
+    const { rerender } = render(
+      <div style={{ width: "1200px", height: "700px" }}>
+        <NoldarimGraphView projectId="proj-1" serverUrl="http://localhost:8080" selectedStep={null} onSelectStep={() => {}} onDeselectStep={() => {}} />
+      </div>
+    );
+
+    rerender(
+      <div style={{ width: "1200px", height: "700px" }}>
+        <NoldarimGraphView projectId="proj-2" serverUrl="http://localhost:8080" selectedStep={null} onSelectStep={() => {}} onDeselectStep={() => {}} />
+      </div>
+    );
+
+    await act(async () => {
+      second.resolve(
+        makeRunsPayload("proj-2", [
+          { id: "new-run", project_id: "proj-2", name: "new", status: 2, created_at: "2026-02-14T10:00:00Z" }
+        ])
+      );
+      await second.promise;
+    });
+
+    await waitFor(() => {
+      expect(useProjectGraphStore.getState().projectId).toBe("proj-2");
+    });
+    expect(useProjectGraphStore.getState().runs.map((run) => run.id)).toEqual(["new-run"]);
+
+    await act(async () => {
+      first.resolve(
+        makeRunsPayload("proj-1", [
+          { id: "old-run", project_id: "proj-1", name: "old", status: 2, created_at: "2026-02-14T09:00:00Z" }
+        ])
+      );
+      await first.promise;
+    });
+
+    await waitFor(() => {
+      expect(useProjectGraphStore.getState().runs.map((run) => run.id)).toEqual(["new-run"]);
+    });
   });
 
   it("renders details drawer with event timeline", () => {

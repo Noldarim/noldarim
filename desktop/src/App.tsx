@@ -8,10 +8,13 @@ import {
 } from "./lib/api";
 import { renderPipelineDraft } from "./lib/pipeline-templating";
 import { pipelineTemplates } from "./lib/templates";
+import { isLiveRun } from "./lib/run-phase";
+import { messageFromError } from "./lib/formatting";
 import type { AgentDefaults, PipelineDraft, Project } from "./lib/types";
 import { StepDetailsDrawer } from "./components/StepDetailsDrawer";
 import { PipelineForm } from "./components/PipelineForm";
-import { RunGraph } from "./components/RunGraph";
+import { NoldarimGraphView } from "./components/NoldarimGraphView";
+import type { StepSelection } from "./components/NoldarimGraphView";
 import { RunToolbar } from "./components/RunToolbar";
 import { ServerSettings } from "./components/ServerSettings";
 import { useRunStore } from "./state/run-store";
@@ -25,10 +28,6 @@ function normalizeProjects(projectMap: Record<string, Project>): Project[] {
   return Object.values(projectMap).sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function messageFromError(error: unknown): string {
-  return error instanceof Error ? error.message : "Unknown error";
-}
-
 export default function App() {
   const [serverUrl, setServerUrl] = useState<string>(() => localStorage.getItem(serverUrlStorageKey) || defaultServerUrl);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
@@ -36,13 +35,12 @@ export default function App() {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [agentDefaults, setAgentDefaults] = useState<AgentDefaults | null>(null);
-  const [selectedStepId, setSelectedStepId] = useState<string | null>(null);
+  const [selectedStepSelection, setSelectedStepSelection] = useState<StepSelection | null>(null);
 
   // Zustand store selectors
   const phase = useRunStore((s) => s.phase);
   const runId = useRunStore((s) => s.runId);
   const steps = useRunStore((s) => s.runDefinition.steps);
-  const run = useRunStore((s) => s.run);
   const error = useRunStore((s) => s.error);
   const stepExecutionById = useRunStore((s) => s.stepExecutionById);
   const activitiesByStep = useActivitiesByStep();
@@ -57,9 +55,14 @@ export default function App() {
   const hasAutoConnectedRef = useRef<boolean>(false);
   const connectAbortRef = useRef<AbortController | null>(null);
 
-  const selectedStep = useMemo(
-    () => steps.find((step) => step.id === selectedStepId) ?? null,
-    [steps, selectedStepId]
+  const selectedProject = useMemo(
+    () => projects.find((p) => p.id === selectedProjectId) ?? null,
+    [projects, selectedProjectId]
+  );
+
+  const selectedStepDraft = useMemo(
+    () => steps.find((step) => step.id === selectedStepSelection?.stepId) ?? null,
+    [steps, selectedStepSelection]
   );
 
   const connect = useCallback(async () => {
@@ -133,7 +136,11 @@ export default function App() {
 
         pipelineCreated = true;
         wsConnected(result.RunID);
-        setSelectedStepId(rendered.steps[0]?.id ?? null);
+        setSelectedStepSelection(
+          rendered.steps[0]
+            ? { stepId: rendered.steps[0].id, runId: result.RunID }
+            : null
+        );
 
         startRealtime(selectedProjectId, result.RunID);
 
@@ -175,7 +182,18 @@ export default function App() {
     }
   }, [closeRealtime, hydrateRun, runCancelling, runCancelled, runFailed, serverUrl, runId]);
 
-  const runLocked = phase === "starting" || phase === "running" || phase === "cancelling";
+  // Close step details drawer on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape" && selectedStepSelection !== null) {
+        setSelectedStepSelection(null);
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [selectedStepSelection]);
+
+  const runLocked = isLiveRun(phase);
 
   return (
     <main className="app-shell">
@@ -217,25 +235,33 @@ export default function App() {
         </aside>
 
         <section className="center-column">
-          <RunToolbar runId={runId} phase={phase} onCancel={onCancel} />
-          <RunGraph
-            selectedStepId={selectedStepId}
-            onSelectStep={setSelectedStepId}
+          <RunToolbar
+            runId={runId}
+            phase={phase}
+            onCancel={onCancel}
+            projectName={selectedProject?.name}
+          />
+          <NoldarimGraphView
+            projectId={selectedProjectId}
+            serverUrl={serverUrl}
+            selectedStep={selectedStepSelection}
+            onSelectStep={setSelectedStepSelection}
+            onDeselectStep={() => setSelectedStepSelection(null)}
           />
           {error && <p className="error-text panel">{error}</p>}
         </section>
       </div>
 
       <StepDetailsDrawer
-        isOpen={selectedStep !== null}
-        step={selectedStep}
+        isOpen={selectedStepDraft !== null}
+        step={selectedStepDraft}
         result={
-          selectedStep
-            ? stepExecutionById[selectedStep.id] ?? null
+          selectedStepDraft
+            ? stepExecutionById[selectedStepDraft.id] ?? null
             : null
         }
-        events={selectedStep ? activitiesByStep[selectedStep.id] ?? [] : []}
-        onClose={() => setSelectedStepId(null)}
+        events={selectedStepDraft ? activitiesByStep[selectedStepDraft.id] ?? [] : []}
+        onClose={() => setSelectedStepSelection(null)}
       />
     </main>
   );

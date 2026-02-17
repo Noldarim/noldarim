@@ -73,6 +73,7 @@ export type StepResult = {
   id: string;
   pipeline_run_id: string;
   step_id: string;
+  step_name?: string;
   step_index: number;
   status: StepStatus;
   commit_sha: string;
@@ -97,12 +98,24 @@ export type PipelineRun = {
   project_id: string;
   name: string;
   status: PipelineRunStatus;
+  base_commit_sha?: string;
+  start_commit_sha?: string;
+  head_commit_sha?: string;
+  parent_run_id?: string;
+  fork_after_step_id?: string;
   created_at?: string;
   updated_at?: string;
   started_at?: string;
   completed_at?: string;
   error_message?: string;
   step_results?: StepResult[];
+};
+
+export type PipelineRunsLoadedEvent = {
+  ProjectID: string;
+  ProjectName: string;
+  RepositoryPath: string;
+  Runs: Record<string, PipelineRun>;
 };
 
 export type AIEventType =
