@@ -1,6 +1,6 @@
 # noldarim Architecture (Server-First)
 
-**Last Updated**: 2026-02-14  
+**Last Updated**: 2026-02-18  
 **Architecture Version**: 3.0
 
 ## Status
@@ -124,6 +124,8 @@ Mounted under `/api/v1` in `internal/server/server.go`:
 - `GET /projects/{id}/commits`
 - `GET /projects/{id}/pipelines`
 - `POST /projects/{id}/pipelines`
+- `GET /pipelines/{runId}`
+- `GET /pipelines/{runId}/activity`
 - `POST /pipelines/{runId}/cancel`
 - `GET /ws` (WebSocket)
 
@@ -185,6 +187,7 @@ graph TD
 `SetupWorkflow` is the setup source of truth and uses compensating actions for cleanup on failure:
 
 - Create and persist `PipelineRun`
+- Persist `RunStepSnapshot` records (step config snapshots at run start)
 - Create worktree
 - Create/start container
 - Copy Claude configuration/credentials
@@ -198,15 +201,31 @@ graph TD
 - Core persisted entities:
   - `projects`, `tasks`
   - `pipeline_runs`, `step_results`
+  - `run_step_snapshots`
   - `ai_activity_records`
 
-### 7.2 Filesystem and Git
+### 7.2 Pipeline Snapshot Persistence (new)
+
+`run_step_snapshots` stores the exact step configuration used for a run:
+
+- Primary key: `(run_id, step_id)` (upsert identity)
+- Additional invariant: `(run_id, step_index)` unique for deterministic step ordering
+- Shape: `step_index`, `step_name`, `agent_config_json`, `definition_hash`, `created_at`
+- Write path: `SetupWorkflow` -> `SaveRunStepSnapshotsActivity` (before step execution starts)
+- Read path: `GET /api/v1/pipelines/{runId}` preloads `step_snapshots` ordered by `step_index`
+
+This powers historical edge-level inspection and deterministic fork reruns from step-level config.
+
+If a running database was created before this change, run migration (`make migrate`) so the
+`run_step_snapshots` table exists in the active SQLite file.
+
+### 7.3 Filesystem and Git
 
 - Per-run worktrees created from project repositories.
 - Step docs/history generated during step execution.
 - Git diff + commit captured per step.
 
-### 7.3 Containers
+### 7.4 Containers
 
 - Containers are created and managed by container activities.
 - Agent worker process (`/app/agent`) is started in container.

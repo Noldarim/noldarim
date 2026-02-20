@@ -1,0 +1,71 @@
+name: "Intent to Implementation"
+description: "Full development cycle from intent to verified implementation: plan, review, test, implement, verify"
+
+variables:
+  intent: "describe the intent behind this project"
+
+steps:
+  - id: plan-from-intent
+    name: "Plan from intent"
+    prompt: |
+      The intent behind this project is: {{.intent}}
+
+      Devise a pragmatic, optimal development plan for how to achieve the goal of the intent.
+      Focus on what matters most — avoid over-engineering or unnecessary abstractions.
+      Save the plan in the planning folder at planning/plan_1.md.
+
+  - id: review-plan
+    name: "Review plan"
+    prompt: |
+      Please review planning/plan_1.md for technical feasibility, security, and general soundness.
+
+      Make sure:
+      - The plan is feasible and realistic
+      - All interfaces, contracts, and dependencies are properly documented
+      - Security considerations are addressed
+
+      If the plan is too long (e.g. longer than ~500 words), divide it into sub-plans
+      (planning/plan_1a.md, planning/plan_1b.md, etc.) and update plan_1.md to reference them.
+
+  - id: final-review
+    name: "Final review pass"
+    prompt: |
+      Review all files in the planning/ folder and make sure they are sound.
+
+      Check for:
+      - Consistency between the main plan and any sub-plans
+      - No gaps or contradictions in the approach
+      - Clear ordering of implementation steps
+
+      Fix any issues you find directly in the planning files.
+
+  - id: write-tests
+    name: "Write tests"
+    prompt: |
+      Read the plan(s) from the planning/ folder.
+
+      Write pragmatic tests that verify whether the goals of the plan were properly achieved.
+      Do not write too many — only test for the most important behavioral requirements
+      of the plan at this stage.
+
+      Run the tests and summarize their output. Tests are expected to fail at this point
+      since nothing is implemented yet.
+
+  - id: implement
+    name: "Implement the plan"
+    prompt: |
+      Please implement the plan from the planning/ folder.
+
+      If there are sub-plans, implement them one by one in the order that makes sense
+      (respecting dependencies between them).
+
+      Follow existing code patterns and conventions in the codebase.
+
+  - id: verify
+    name: "Verify implementation"
+    prompt: |
+      Review the implementation from the last few commits and check if it properly
+      implements the plan from the planning/ folder.
+
+      Then run the tests and summarize the output. All of them should pass.
+      If any tests fail, analyze the failures and fix the implementation.

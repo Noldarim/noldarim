@@ -121,7 +121,7 @@ func testTasksCRUD(t *testing.T, db *database.GormDB, ds *DataService) {
 	assert.Equal(t, "Updated description", updatedTask.Description)
 
 	// Test Delete Task
-	err = ds.DeleteTask(ctx, project.ID, taskView.ID)
+	err = ds.DeleteTask(ctx, taskView.ID)
 	require.NoError(t, err, "Failed to delete task")
 
 	// Verify task is deleted
@@ -155,7 +155,7 @@ func testTaskStatusUpdates(t *testing.T, db *database.GormDB, ds *DataService) {
 	}
 
 	for _, status := range statuses {
-		err = ds.UpdateTaskStatus(ctx, project.ID, taskView.ID, status)
+		err = ds.UpdateTaskStatus(ctx, taskView.ID, status)
 		require.NoError(t, err, "Failed to update task status to %v", status)
 
 		// Verify status was updated
