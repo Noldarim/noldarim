@@ -153,5 +153,48 @@ export const pipelineTemplates: PipelineTemplate[] = [
         }
       ]
     }
+  },
+  {
+    id: "intent-to-implementation",
+    name: "Intent to Implementation",
+    description: "Full development cycle from intent to verified implementation: plan, review, test, implement, verify",
+    draft: {
+      name: "Intent to Implementation",
+      variables: {
+        intent: "describe the intent behind this project"
+      },
+      steps: [
+        {
+          id: "plan-from-intent",
+          name: "Plan from intent",
+          prompt: "The intent behind this project is: {{.intent}}\n\nDevise a pragmatic, optimal development plan for how to achieve the goal of the intent.\nFocus on what matters most — avoid over-engineering or unnecessary abstractions.\nSave the plan in the planning folder at planning/plan_1.md."
+        },
+        {
+          id: "review-plan",
+          name: "Review plan",
+          prompt: "Please review planning/plan_1.md for technical feasibility, security, and general soundness.\n\nMake sure:\n- The plan is feasible and realistic\n- All interfaces, contracts, and dependencies are properly documented\n- Security considerations are addressed\n\nIf the plan is too long (e.g. longer than ~500 words), divide it into sub-plans\n(planning/plan_1a.md, planning/plan_1b.md, etc.) and update plan_1.md to reference them."
+        },
+        {
+          id: "final-review",
+          name: "Final review pass",
+          prompt: "Review all files in the planning/ folder and make sure they are sound.\n\nCheck for:\n- Consistency between the main plan and any sub-plans\n- No gaps or contradictions in the approach\n- Clear ordering of implementation steps\n\nFix any issues you find directly in the planning files."
+        },
+        {
+          id: "write-tests",
+          name: "Write tests",
+          prompt: "Read the plan(s) from the planning/ folder.\n\nWrite pragmatic tests that verify whether the goals of the plan were properly achieved.\nDo not write too many — only test for the most important behavioral requirements\nof the plan at this stage.\n\nRun the tests and summarize their output. Tests are expected to fail at this point\nsince nothing is implemented yet."
+        },
+        {
+          id: "implement",
+          name: "Implement the plan",
+          prompt: "Please implement the plan from the planning/ folder.\n\nIf there are sub-plans, implement them one by one in the order that makes sense\n(respecting dependencies between them).\n\nFollow existing code patterns and conventions in the codebase."
+        },
+        {
+          id: "verify",
+          name: "Verify implementation",
+          prompt: "Review the implementation from the last few commits and check if it properly\nimplements the plan from the planning/ folder.\n\nThen run the tests and summarize the output. All of them should pass.\nIf any tests fail, analyze the failures and fix the implementation."
+        }
+      ]
+    }
   }
 ];

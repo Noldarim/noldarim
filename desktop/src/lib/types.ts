@@ -93,6 +93,16 @@ export type StepResult = {
   completed_at?: string;
 };
 
+export type RunStepSnapshot = {
+  run_id: string;
+  step_id: string;
+  step_index: number;
+  step_name: string;
+  agent_config_json: string;
+  definition_hash: string;
+  created_at?: string;
+};
+
 export type PipelineRun = {
   id: string;
   project_id: string;
@@ -109,6 +119,20 @@ export type PipelineRun = {
   completed_at?: string;
   error_message?: string;
   step_results?: StepResult[];
+  step_snapshots?: RunStepSnapshot[];
+};
+
+export type CommitInfo = {
+  Hash: string;
+  Message: string;
+  Author: string;
+  Parents: string[];
+};
+
+export type CommitsLoadedEvent = {
+  ProjectID: string;
+  RepositoryPath: string;
+  Commits: CommitInfo[];
 };
 
 export type PipelineRunsLoadedEvent = {

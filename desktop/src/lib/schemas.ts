@@ -52,6 +52,16 @@ export const StepResultSchema = z.object({
   completed_at: z.string().optional()
 });
 
+export const RunStepSnapshotSchema = z.object({
+  run_id: z.string(),
+  step_id: z.string(),
+  step_index: z.number(),
+  step_name: z.string(),
+  agent_config_json: z.string(),
+  definition_hash: z.string(),
+  created_at: z.string().optional()
+});
+
 export const PipelineRunSchema = z.object({
   id: z.string(),
   project_id: z.string(),
@@ -67,7 +77,8 @@ export const PipelineRunSchema = z.object({
   started_at: z.string().optional(),
   completed_at: z.string().optional(),
   error_message: z.string().optional(),
-  step_results: z.array(StepResultSchema).optional()
+  step_results: z.array(StepResultSchema).optional(),
+  step_snapshots: z.array(RunStepSnapshotSchema).optional()
 });
 
 export const PipelineRunsLoadedEventSchema = z.object({
@@ -75,6 +86,19 @@ export const PipelineRunsLoadedEventSchema = z.object({
   ProjectName: z.string(),
   RepositoryPath: z.string(),
   Runs: z.record(z.string(), PipelineRunSchema).nullable().transform((v) => v ?? {})
+});
+
+export const CommitInfoSchema = z.object({
+  Hash: z.string(),
+  Message: z.string(),
+  Author: z.string(),
+  Parents: z.array(z.string())
+});
+
+export const CommitsLoadedEventSchema = z.object({
+  ProjectID: z.string(),
+  RepositoryPath: z.string(),
+  Commits: z.array(CommitInfoSchema).nullable().transform((v) => v ?? [])
 });
 
 export const PipelineRunResultSchema = z.object({
