@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState, type FormEvent } from "react";
+import { useMemo, useReducer, useRef, type FormEvent } from "react";
 
 import type { PipelineDraft, StepDraft } from "../lib/types";
 import type { PipelineTemplate } from "../lib/templates";
@@ -13,6 +13,24 @@ type FormStep = StepDraft & { _key: string };
 
 function toFormSteps(steps: StepDraft[], keyFn: () => string): FormStep[] {
   return steps.map((step) => ({ ...step, _key: keyFn() }));
+}
+
+type FormState = {
+  selectedTemplateId: string;
+  name: string;
+  variables: VariableRow[];
+  steps: FormStep[];
+  error: string | null;
+  isSubmitting: boolean;
+};
+
+type FormAction =
+  | Partial<FormState>
+  | ((prev: FormState) => Partial<FormState>);
+
+function formReducer(state: FormState, action: FormAction): FormState {
+  const patch = typeof action === "function" ? action(state) : action;
+  return { ...state, ...patch };
 }
 
 type Props = {
@@ -31,14 +49,16 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
     return `step-${++stepCounter.current}`;
   }
 
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
-  const [name, setName] = useState<string>("Pipeline run");
-  const [variables, setVariables] = useState<VariableRow[]>([]);
-  const [steps, setSteps] = useState<FormStep[]>(() => [
-    { id: "step-1", name: "Step 1", prompt: "Describe what this step should do", _key: formKey() }
-  ]);
-  const [error, setError] = useState<string | null>(null);
-  const [isSubmitting, setIsSubmitting] = useState<boolean>(false);
+  const [state, dispatch] = useReducer(formReducer, null, () => ({
+    selectedTemplateId: "",
+    name: "Pipeline run",
+    variables: [] as VariableRow[],
+    steps: [{ id: "step-1", name: "Step 1", prompt: "Describe what this step should do", _key: formKey() }],
+    error: null,
+    isSubmitting: false
+  }));
+
+  const { selectedTemplateId, name, variables, steps, error, isSubmitting } = state;
 
   const templateLookup = useMemo(() => {
     const lookup = new Map<string, PipelineTemplate>();
@@ -54,77 +74,74 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
       return;
     }
 
-    setName(template.draft.name);
-    setVariables(
-      Object.entries(template.draft.variables).map(([key, value]) => ({
-        key,
-        value
-      }))
-    );
-    setSteps(toFormSteps(template.draft.steps, formKey));
-    setError(null);
+    dispatch({
+      selectedTemplateId: templateId,
+      name: template.draft.name,
+      variables: Object.entries(template.draft.variables).map(([key, value]) => ({ key, value })),
+      steps: toFormSteps(template.draft.steps, formKey),
+      error: null
+    });
   }
 
   function updateStep(index: number, patch: Partial<StepDraft>) {
-    setSteps((prev) => {
-      const next = [...prev];
+    dispatch((prev) => {
+      const next = [...prev.steps];
       next[index] = { ...next[index], ...patch };
-      return next;
+      return { steps: next };
     });
   }
 
   function moveStep(index: number, direction: -1 | 1) {
-    setSteps((prev) => {
+    dispatch((prev) => {
       const target = index + direction;
-      if (target < 0 || target >= prev.length) {
-        return prev;
+      if (target < 0 || target >= prev.steps.length) {
+        return {};
       }
-      const next = [...prev];
+      const next = [...prev.steps];
       const [item] = next.splice(index, 1);
       next.splice(target, 0, item);
-      return next;
+      return { steps: next };
     });
   }
 
   function deleteStep(index: number) {
-    setSteps((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+    dispatch((prev) => ({ steps: prev.steps.filter((_, i) => i !== index) }));
   }
 
   function addStep() {
     const id = nextStepId();
-    setSteps((prev) => [
-      ...prev,
-      { id, name: `Step ${prev.length + 1}`, prompt: "", _key: formKey() }
-    ]);
+    dispatch((prev) => ({
+      steps: [...prev.steps, { id, name: `Step ${prev.steps.length + 1}`, prompt: "", _key: formKey() }]
+    }));
   }
 
   function updateVariable(index: number, patch: Partial<VariableRow>) {
-    setVariables((prev) => {
-      const next = [...prev];
+    dispatch((prev) => {
+      const next = [...prev.variables];
       next[index] = { ...next[index], ...patch };
-      return next;
+      return { variables: next };
     });
   }
 
   function addVariable() {
-    setVariables((prev) => [...prev, { key: "", value: "" }]);
+    dispatch((prev) => ({ variables: [...prev.variables, { key: "", value: "" }] }));
   }
 
   function deleteVariable(index: number) {
-    setVariables((prev) => prev.filter((_, currentIndex) => currentIndex !== index));
+    dispatch((prev) => ({ variables: prev.variables.filter((_, i) => i !== index) }));
   }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    setError(null);
+    dispatch({ error: null });
 
     const trimmedName = name.trim();
     if (!trimmedName) {
-      setError("Pipeline name is required.");
+      dispatch({ error: "Pipeline name is required." });
       return;
     }
     if (steps.length === 0) {
-      setError("At least one step is required.");
+      dispatch({ error: "At least one step is required." });
       return;
     }
 
@@ -136,15 +153,15 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
 
     for (const [index, step] of validatedSteps.entries()) {
       if (!step.id) {
-        setError(`Step ${index + 1}: id is required.`);
+        dispatch({ error: `Step ${index + 1}: id is required.` });
         return;
       }
       if (!step.name) {
-        setError(`Step ${index + 1}: name is required.`);
+        dispatch({ error: `Step ${index + 1}: name is required.` });
         return;
       }
       if (!step.prompt.trim()) {
-        setError(`Step ${index + 1}: prompt is required.`);
+        dispatch({ error: `Step ${index + 1}: prompt is required.` });
         return;
       }
     }
@@ -158,7 +175,7 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
       variableMap[key] = row.value;
     }
 
-    setIsSubmitting(true);
+    dispatch({ isSubmitting: true });
     try {
       await onStart({
         name: trimmedName,
@@ -167,9 +184,9 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
       });
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Failed to start pipeline";
-      setError(message);
+      dispatch({ error: message });
     } finally {
-      setIsSubmitting(false);
+      dispatch({ isSubmitting: false });
     }
   }
 
@@ -184,11 +201,10 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
             value={selectedTemplateId}
             onChange={(event) => {
               const value = event.target.value;
-              setSelectedTemplateId(value);
               if (value) {
                 applyTemplate(value);
               } else {
-                setError(null);
+                dispatch({ selectedTemplateId: "", error: null });
               }
             }}
             disabled={disabled || isSubmitting}
@@ -207,7 +223,7 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
           <input
             id="pipeline-name"
             value={name}
-            onChange={(event) => setName(event.target.value)}
+            onChange={(event) => dispatch({ name: event.target.value })}
             disabled={disabled || isSubmitting}
           />
         </div>
