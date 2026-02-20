@@ -1,0 +1,86 @@
+@import url("https://fonts.googleapis.com/css2?family=Cinzel:wght@400;600;700&family=Inter:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;600&display=swap");
+
+body {
+  margin: 0;
+  font-family: var(--font-body);
+  color: var(--text-primary);
+  background-color: var(--bg-base);
+  background-image:
+    /* Fine grid */
+    linear-gradient(rgba(62, 198, 224, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 198, 224, 0.035) 1px, transparent 1px),
+    /* Major grid */
+    linear-gradient(rgba(62, 198, 224, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 198, 224, 0.06) 1px, transparent 1px);
+  background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
+  min-height: 100vh;
+}
+
+/* Vignette overlay on the root element */
+#root {
+  min-height: 100vh;
+  background:
+    radial-gradient(ellipse at 50% 0%, rgba(62, 198, 224, 0.06) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 100%, rgba(201, 168, 76, 0.04) 0%, transparent 40%),
+    radial-gradient(ellipse at 50% 50%, transparent 30%, rgba(6, 8, 16, 0.5) 100%);
+}
+
+h1 {
+  font-family: var(--font-display);
+}
+
+h2,
+h3 {
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+h4 {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+label {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.76rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+a {
+  color: var(--accent-cyan);
+}
+
+strong {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+/* Scrollbar styling */
+::-webkit-scrollbar {
+  width: 5px;
+  height: 5px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border-emphasis);
+  border-radius: var(--radius-pill);
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--accent-gold);
+}
+
+/* Selection */
+::selection {
+  background: rgba(201, 168, 76, 0.3);
+  color: var(--text-primary);
+}

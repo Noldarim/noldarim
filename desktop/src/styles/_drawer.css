@@ -1,0 +1,213 @@
+.details-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(4px);
+  z-index: 55;
+  animation: backdrop-fade-in 0.2s ease-out;
+}
+
+.details-drawer {
+  position: fixed;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: min(480px, 92vw);
+  border-left: 2px solid var(--accent-gold);
+  background: linear-gradient(180deg, rgba(15, 23, 42, 0.97) 0%, rgba(10, 14, 23, 0.98) 100%);
+  backdrop-filter: blur(20px);
+  box-shadow: var(--shadow-drawer), -4px 0 30px rgba(201, 168, 76, 0.08);
+  padding: 1.2rem;
+  overflow-y: auto;
+  z-index: 60;
+  display: grid;
+  gap: var(--space-lg);
+  animation: drawer-slide-in 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.details-drawer--wide {
+  width: min(620px, 94vw);
+}
+
+.details-drawer__header {
+  display: flex;
+  justify-content: space-between;
+  gap: 0.8rem;
+  align-items: start;
+  padding-bottom: 0.8rem;
+  border-bottom: 1px solid var(--border-default);
+}
+
+.details-drawer__header h3 {
+  color: var(--accent-gold-text);
+  font-size: 0.9rem;
+}
+
+.tool-group-card {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  padding: 0.55rem;
+  background: rgba(15, 23, 42, 0.5);
+  display: grid;
+  gap: 0.3rem;
+  margin-bottom: 0.4rem;
+  transition: border-color var(--transition-fast);
+}
+
+.tool-group-card:hover {
+  border-color: var(--border-emphasis);
+}
+
+.event-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.event-list__item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.45rem;
+  font-size: 0.85rem;
+  background: rgba(15, 23, 42, 0.3);
+  transition: border-color var(--transition-fast);
+}
+
+.event-list__item:hover {
+  border-color: var(--border-emphasis);
+}
+
+.event-list__meta {
+  display: flex;
+  justify-content: space-between;
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  margin-bottom: 0.25rem;
+}
+
+.step-result-grid {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 0.25rem 0.75rem;
+  font-size: 0.86rem;
+  margin: 0;
+}
+
+.step-result-grid dt {
+  color: var(--text-tertiary);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.78rem;
+}
+
+.step-result-grid dd {
+  margin: 0;
+  font-family: var(--font-mono);
+  font-size: 0.82rem;
+}
+
+.step-output-details {
+  margin-top: 0.5rem;
+}
+
+.step-output-details summary {
+  cursor: pointer;
+  font-weight: 600;
+  font-size: 0.82rem;
+  color: var(--accent-cyan);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  transition: color var(--transition-fast);
+}
+
+.step-output-details summary:hover {
+  color: var(--accent-cyan-bright);
+}
+
+.step-output-pre {
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.6rem;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  max-height: 300px;
+  overflow: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  color: var(--text-secondary);
+  line-height: 1.5;
+}
+
+.edge-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.edge-tabs button {
+  font-size: 0.66rem;
+  letter-spacing: 0.05em;
+  padding: 0.28rem 0.5rem;
+}
+
+.edge-tabs button.active {
+  border-color: var(--accent-gold);
+  color: var(--accent-gold-bright);
+  box-shadow: var(--glow-gold);
+}
+
+.drawer-section {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.edge-detail-pre {
+  margin: 0;
+  background: var(--bg-inset);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.55rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  color: var(--text-secondary);
+}
+
+.edge-log-item {
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-md);
+  padding: 0.45rem;
+  background: rgba(15, 23, 42, 0.35);
+  display: grid;
+  gap: 0.2rem;
+}
+
+.edge-config-form {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.edge-config-form label {
+  display: grid;
+  gap: 0.2rem;
+  font-size: 0.74rem;
+}
+
+.edge-drawer-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  align-items: center;
+}
+
+@media (max-width: 1200px) {
+  .details-drawer {
+    width: 100vw;
+  }
+}

@@ -1,0 +1,78 @@
+:root {
+  /* ── Backgrounds ── */
+  --bg-base: #080c14;
+  --bg-surface: rgba(15, 23, 42, 0.85);
+  --bg-surface-solid: #0f172a;
+  --bg-surface-hover: #1a2338;
+  --bg-elevated: rgba(22, 33, 55, 0.92);
+  --bg-inset: #050810;
+  --bg-canvas: #0a0f1a;
+
+  /* ── Borders ── */
+  --border-default: rgba(30, 41, 59, 0.7);
+  --border-emphasis: #334155;
+  --border-gold: rgba(201, 168, 76, 0.45);
+  --border-cyan: rgba(62, 198, 224, 0.4);
+  --border-rose: rgba(196, 92, 92, 0.4);
+
+  /* ── Text ── */
+  --text-primary: #e8e0d0;
+  --text-secondary: #8b9cb6;
+  --text-tertiary: #4a5568;
+
+  /* ── Accents ── */
+  --accent-gold: #c9a84c;
+  --accent-gold-bright: #e0c060;
+  --accent-gold-soft: rgba(201, 168, 76, 0.15);
+  --accent-gold-text: #d4b85a;
+  --accent-cyan: #3ec6e0;
+  --accent-cyan-bright: #5dd8f0;
+  --accent-cyan-soft: rgba(62, 198, 224, 0.12);
+  --accent-rose: #e05555;
+  --accent-rose-soft: rgba(224, 85, 85, 0.12);
+
+  /* ── Status ── */
+  --status-running: #3ec6e0;
+  --status-success: #34d399;
+  --status-danger: #f87171;
+  --status-warning: #fbbf24;
+
+  /* ── Typography ── */
+  --font-display: "Cinzel", "Palatino Linotype", serif;
+  --font-body: "Inter", "Space Grotesk", system-ui, sans-serif;
+  --font-mono: "IBM Plex Mono", monospace;
+
+  /* ── Spacing ── */
+  --space-xs: 0.25rem;
+  --space-sm: 0.45rem;
+  --space-md: 0.75rem;
+  --space-lg: 1rem;
+  --space-xl: 1.2rem;
+
+  /* ── Radii ── */
+  --radius-sm: 6px;
+  --radius-md: 8px;
+  --radius-lg: 10px;
+  --radius-xl: 12px;
+  --radius-pill: 999px;
+
+  /* ── Shadows ── */
+  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, 0.45);
+  --shadow-lg: 0 14px 36px rgba(0, 0, 0, 0.5);
+  --shadow-drawer: -20px 0 60px rgba(0, 0, 0, 0.7);
+
+  /* ── Glows ── */
+  --glow-gold: 0 0 20px rgba(201, 168, 76, 0.3), 0 0 60px rgba(201, 168, 76, 0.08);
+  --glow-gold-strong: 0 0 20px rgba(201, 168, 76, 0.4), 0 0 80px rgba(201, 168, 76, 0.15);
+  --glow-cyan: 0 0 20px rgba(62, 198, 224, 0.3), 0 0 60px rgba(62, 198, 224, 0.08);
+  --glow-cyan-strong: 0 0 20px rgba(62, 198, 224, 0.5), 0 0 80px rgba(62, 198, 224, 0.15);
+  --glow-rose: 0 0 16px rgba(224, 85, 85, 0.25);
+  --glow-success: 0 0 16px rgba(52, 211, 153, 0.25);
+  --glow-gold-focus: 0 0 0 2px rgba(201, 168, 76, 0.35), 0 0 16px rgba(201, 168, 76, 0.15);
+
+  /* ── Transitions ── */
+  --transition-fast: 0.15s ease;
+  --transition-normal: 0.25s ease;
+  --transition-smooth: 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}

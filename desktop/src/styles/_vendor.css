@@ -1,0 +1,187 @@
+/* ── @xyflow/react dark overrides ── */
+.react-flow {
+  --xy-background-color: var(--bg-canvas);
+  --xy-node-color: var(--text-primary);
+  --xy-node-border: var(--border-default);
+  --xy-node-background-color: var(--bg-surface-solid);
+  --xy-edge-stroke: var(--accent-cyan);
+  --xy-edge-stroke-selected: var(--accent-gold);
+  --xy-edge-stroke-width: 1.5;
+  --xy-connectionline-stroke: var(--accent-cyan);
+  --xy-minimap-background-color: var(--bg-base);
+  --xy-controls-button-background-color: var(--bg-surface-solid);
+  --xy-controls-button-color: var(--text-secondary);
+  --xy-controls-button-border-color: var(--border-default);
+  --xy-attribution-background-color: transparent;
+}
+
+/* Smooth position changes when nodes shift (e.g. expansion) */
+.react-flow__node {
+  transition: transform var(--transition-smooth);
+  animation: graph-fade-in 0.25s ease-out;
+}
+
+.react-flow .react-flow__node.selected {
+  box-shadow: 0 0 0 2px var(--accent-gold), var(--glow-gold);
+  border-radius: var(--radius-xl);
+}
+
+/* Edge enter/exit animations (applied selectively by useAnimatedEdges) */
+.react-flow__edge.edge-entering {
+  animation: edge-fade-in 0.3s ease-out;
+}
+
+.react-flow__edge.edge-exiting {
+  animation: edge-fade-out 0.25s ease-in forwards;
+  pointer-events: none;
+}
+
+.react-flow__edge path {
+  filter: drop-shadow(0 0 3px rgba(62, 198, 224, 0.3));
+}
+
+.react-flow__edge.pipeline-edge--clickable path {
+  cursor: pointer;
+  transition: filter 0.15s ease, opacity 0.15s ease;
+}
+
+.react-flow__edge.pipeline-edge--clickable:hover path {
+  filter: drop-shadow(0 0 6px rgba(201, 168, 76, 0.55));
+  opacity: 1;
+}
+
+.react-flow__edge-text {
+  font-size: 11px;
+  fill: var(--text-secondary);
+}
+
+.pipeline-edge-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  background: var(--bg-surface-solid);
+  border: 1px solid var(--border-default);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font-size: 0.68rem;
+  color: var(--text-secondary);
+  pointer-events: none;
+}
+
+.pipeline-edge-label--clickable {
+  border-color: rgba(201, 168, 76, 0.45);
+  box-shadow: 0 0 0 1px rgba(201, 168, 76, 0.12);
+}
+
+.pipeline-edge-label__token-hint {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  color: var(--text-tertiary);
+}
+
+.pipeline-edge-label__hint {
+  font-size: 0.56rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent-gold-bright);
+  border-left: 1px solid rgba(201, 168, 76, 0.35);
+  padding-left: 4px;
+}
+
+.pipeline-edge-badge {
+  font-family: var(--font-mono);
+  font-size: 0.6rem;
+  font-weight: 600;
+  background: rgba(201, 168, 76, 0.2);
+  border: 1px solid var(--border-gold);
+  border-radius: 3px;
+  padding: 0 4px;
+  color: var(--accent-gold-bright);
+}
+
+.status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.react-flow__controls {
+  border-radius: var(--radius-md) !important;
+  overflow: hidden;
+  box-shadow: var(--shadow-sm) !important;
+  border: 1px solid var(--border-default) !important;
+}
+
+.react-flow__controls button {
+  background: var(--bg-surface-solid) !important;
+  color: var(--text-secondary) !important;
+  border-color: var(--border-default) !important;
+  transition: all 0.15s ease !important;
+}
+
+.react-flow__controls button:hover {
+  background: var(--bg-surface-hover) !important;
+  color: var(--text-primary) !important;
+}
+
+/* ── diff2html dark overrides ── */
+.d2h-wrapper {
+  background: var(--bg-inset) !important;
+  color: var(--text-primary) !important;
+  border-radius: var(--radius-md);
+}
+
+.d2h-file-header {
+  background: var(--bg-surface-solid) !important;
+  border-color: var(--border-default) !important;
+  color: var(--text-primary) !important;
+}
+
+.d2h-file-diff {
+  background: var(--bg-inset) !important;
+}
+
+.d2h-code-line {
+  color: var(--text-primary) !important;
+}
+
+.d2h-code-side-line {
+  color: var(--text-primary) !important;
+}
+
+.d2h-diff-table {
+  background: var(--bg-inset) !important;
+}
+
+.d2h-ins {
+  background: rgba(52, 211, 153, 0.1) !important;
+}
+
+.d2h-ins .d2h-code-line {
+  background: rgba(52, 211, 153, 0.08) !important;
+}
+
+.d2h-del {
+  background: rgba(248, 113, 113, 0.1) !important;
+}
+
+.d2h-del .d2h-code-line {
+  background: rgba(248, 113, 113, 0.08) !important;
+}
+
+.d2h-info {
+  background: var(--bg-surface-solid) !important;
+  color: var(--text-secondary) !important;
+}
+
+.d2h-code-linenumber {
+  color: var(--text-tertiary) !important;
+  background: var(--bg-surface-solid) !important;
+  border-color: var(--border-default) !important;
+}
+
+.d2h-emptyplaceholder {
+  background: var(--bg-inset) !important;
+  border-color: var(--border-default) !important;
+}

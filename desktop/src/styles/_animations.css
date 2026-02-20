@@ -1,0 +1,80 @@
+/* ── Node pulses ── */
+@keyframes node-pulse-cyan {
+  0%,
+  100% {
+    box-shadow: var(--shadow-md), 0 0 12px rgba(62, 198, 224, 0.2);
+  }
+  50% {
+    box-shadow: var(--shadow-md), 0 0 24px rgba(62, 198, 224, 0.4), 0 0 60px rgba(62, 198, 224, 0.1);
+  }
+}
+
+@keyframes status-glow-cyan {
+  0%,
+  100% {
+    box-shadow: none;
+  }
+  50% {
+    box-shadow: 0 0 8px rgba(62, 198, 224, 0.3);
+  }
+}
+
+/* ── Drawer ── */
+@keyframes drawer-slide-in {
+  from {
+    transform: translateX(100%);
+    opacity: 0.5;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+@keyframes backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* ── Graph node/edge enter ── */
+@keyframes graph-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes edge-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes edge-fade-out {
+  from { opacity: 1; }
+  to { opacity: 0; }
+}
+
+/* ── Patch node overlay expand ── */
+@keyframes patch-expand-in {
+  from {
+    opacity: 0;
+    transform: scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+/* ── Gold shimmer (for header accents) ── */
+@keyframes gold-shimmer {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
