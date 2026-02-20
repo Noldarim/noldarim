@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { create } from "zustand";
 
 import { PipelineRunStatus } from "../lib/types";
@@ -198,13 +201,6 @@ export const useRunStore = create<RunState & RunActions>()((set) => ({
       const activityByEventId = mergeActivities(prev.activityByEventId, activities);
       const draftStepIds = new Set(prev.runDefinition.steps.map((s) => s.id));
       const activityByStepId = rebuildActivityByStepId(activityByEventId, draftStepIds);
-
-      console.debug(
-        "[snapshotApplied] phase=%s stepResults=%d stepExecKeys=%o",
-        phase,
-        run.step_results?.length ?? 0,
-        Object.keys(stepExecutionById)
-      );
 
       return {
         run,

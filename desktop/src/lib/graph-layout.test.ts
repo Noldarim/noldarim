@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { describe, expect, it } from "vitest";
 
 import {
@@ -92,6 +95,46 @@ describe("resolveRuns", () => {
     });
     const result = resolveRuns([listRun], { r1: { run: detailRun, activities: [] } });
     expect(result[0].step_results).toHaveLength(1);
+  });
+
+  it("prefers newer runDetails by updated_at even with fewer step_results", () => {
+    const listRun = makeRun({
+      id: "r1",
+      updated_at: "2026-02-10T10:00:00Z",
+      step_results: [
+        makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "r1" }),
+        makeStepResult({ step_id: "s2", step_index: 1, pipeline_run_id: "r1" })
+      ]
+    });
+    const detailRun = makeRun({
+      id: "r1",
+      updated_at: "2026-02-10T11:00:00Z",
+      step_results: [makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "r1" })],
+      error_message: "newer details"
+    });
+
+    const result = resolveRuns([listRun], { r1: { run: detailRun, activities: [] } });
+    expect(result[0].error_message).toBe("newer details");
+  });
+
+  it("keeps newer list data when cached runDetails is stale", () => {
+    const listRun = makeRun({
+      id: "r1",
+      updated_at: "2026-02-10T11:00:00Z",
+      error_message: "fresh list"
+    });
+    const detailRun = makeRun({
+      id: "r1",
+      updated_at: "2026-02-10T10:00:00Z",
+      step_results: [
+        makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "r1" }),
+        makeStepResult({ step_id: "s2", step_index: 1, pipeline_run_id: "r1" })
+      ],
+      error_message: "stale details"
+    });
+
+    const result = resolveRuns([listRun], { r1: { run: detailRun, activities: [] } });
+    expect(result[0].error_message).toBe("fresh list");
   });
 
   it("sorts by created_at ascending", () => {

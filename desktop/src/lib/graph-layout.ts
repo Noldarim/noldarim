@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import type { Edge, Node } from "@xyflow/react";
 
 import type { AgentConfigInput, AIActivityRecord, CommitInfo, PipelineRun, RunStepSnapshot, StepResult } from "./types";
@@ -283,13 +286,37 @@ export function resolveRuns(
   runs: PipelineRun[],
   runDetails: Record<string, { run: PipelineRun; activities: AIActivityRecord[] }>
 ): PipelineRun[] {
+  const runVersionTime = (run?: PipelineRun | null): number => {
+    if (!run) return 0;
+    const updated = run.updated_at ? Date.parse(run.updated_at) : Number.NaN;
+    if (!Number.isNaN(updated)) return updated;
+    const created = run.created_at ? Date.parse(run.created_at) : Number.NaN;
+    return Number.isNaN(created) ? 0 : created;
+  };
+
   function resolveRun(run: PipelineRun): PipelineRun {
     const details = runDetails[run.id];
     if (!details) return run;
     const detailsRun = details.run;
-    if ((detailsRun.step_results?.length ?? 0) >= (run.step_results?.length ?? 0)) {
+
+    const detailsTime = runVersionTime(detailsRun);
+    const listTime = runVersionTime(run);
+    if (detailsTime > listTime) {
       return { ...run, ...detailsRun };
     }
+    if (detailsTime < listTime) {
+      return run;
+    }
+
+    const detailsStepCount = detailsRun.step_results?.length ?? 0;
+    const listStepCount = run.step_results?.length ?? 0;
+    const detailsSnapshotCount = detailsRun.step_snapshots?.length ?? 0;
+    const listSnapshotCount = run.step_snapshots?.length ?? 0;
+
+    if (detailsStepCount >= listStepCount && detailsSnapshotCount >= listSnapshotCount) {
+      return { ...run, ...detailsRun };
+    }
+
     return run;
   }
 

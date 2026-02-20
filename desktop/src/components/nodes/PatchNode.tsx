@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { memo, useCallback } from "react";
 import { Handle, Position, type Node, type NodeProps } from "@xyflow/react";
 import { usePatchExpand } from "./PatchExpandContext";

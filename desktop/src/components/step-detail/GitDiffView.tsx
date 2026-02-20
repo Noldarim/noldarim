@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useEffect, useRef } from "react";
 import { Diff2HtmlUI } from "diff2html/lib/ui/js/diff2html-ui-slim.js";
 import "diff2html/bundles/css/diff2html.min.css";

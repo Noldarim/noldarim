@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { PipelineRunStatus, StepStatus } from "../lib/types";
 import type { AIActivityRecord, AgentConfigInput, CommitInfo, PipelineRun, RunStepSnapshot, StepResult } from "../lib/types";
 

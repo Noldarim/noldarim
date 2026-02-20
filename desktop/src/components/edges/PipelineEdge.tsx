@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { BaseEdge, getSmoothStepPath, Position, type EdgeProps } from "@xyflow/react";
 
 import type { GraphEdgeData } from "../../lib/graph-layout";

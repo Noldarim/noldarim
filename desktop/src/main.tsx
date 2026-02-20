@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import React, { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import ReactDOM from "react-dom/client";

@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { create } from "zustand";
 
 import type { AIActivityRecord, PipelineRun } from "../lib/types";
@@ -38,11 +41,26 @@ export const useProjectGraphStore = create<ProjectGraphState & ProjectGraphActio
   ...initialState,
 
   setRuns: (projectId, runs) =>
-    set({
-      projectId,
-      runs,
-      isLoading: false,
-      error: null
+    set((prev) => {
+      const sameProject = prev.projectId === projectId;
+      const nextExpandedRunData: Record<string, ExpandedRunData> = {};
+
+      if (sameProject) {
+        const runIds = new Set(runs.map((run) => run.id));
+        for (const [runId, detail] of Object.entries(prev.expandedRunData)) {
+          if (runIds.has(runId)) {
+            nextExpandedRunData[runId] = detail;
+          }
+        }
+      }
+
+      return {
+        projectId,
+        runs,
+        isLoading: false,
+        error: null,
+        expandedRunData: nextExpandedRunData
+      };
     }),
 
   setLoading: (isLoading) => set({ isLoading }),

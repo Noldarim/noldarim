@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useCallback, useEffect, useRef } from "react";
 
 import {
@@ -50,13 +53,6 @@ export function useRunConnection(serverUrl: string) {
         getPipelineRunActivity(serverUrl, hRunId)
       ]);
       recordHydrateLatency(Math.round(performance.now() - start));
-      console.debug(
-        "[hydrateRun] run=%s status=%d step_results=%d",
-        hRun.id,
-        hRun.status,
-        hRun.step_results?.length ?? 0,
-        hRun.step_results?.map((sr) => `${sr.step_id}:${sr.status}`)
-      );
       snapshotApplied(hRun, activityBatch.Activities ?? []);
     },
     [serverUrl, snapshotApplied]

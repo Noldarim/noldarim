@@ -1,8 +1,11 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import React, { useState } from "react";
 import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { NoldarimGraphView } from "./NoldarimGraphView";
+import { mergeAnimatedEdges, NoldarimGraphView } from "./NoldarimGraphView";
 import { getCommits, getPipelineRun, getPipelineRunActivity, listPipelineRuns } from "../lib/api";
 import { useRunStore } from "../state/run-store";
 import { useProjectGraphStore } from "../state/project-graph-store";
@@ -108,6 +111,28 @@ describe("NoldarimGraphView", () => {
           status: 2,
           start_commit_sha: "bbb222",
           head_commit_sha: "aaa111",
+          step_results: [
+            {
+              id: "sr-1",
+              pipeline_run_id: "run-1",
+              step_id: "s1",
+              step_name: "Step 1",
+              step_index: 0,
+              status: 2,
+              commit_sha: "aaa111",
+              commit_message: "step 1",
+              git_diff: "diff",
+              files_changed: 1,
+              insertions: 1,
+              deletions: 0,
+              input_tokens: 10,
+              output_tokens: 10,
+              cache_read_tokens: 0,
+              cache_create_tokens: 0,
+              agent_output: "ok",
+              duration: 100_000_000
+            }
+          ],
           created_at: "2026-02-14T10:00:00Z"
         }
       }
@@ -123,6 +148,9 @@ describe("NoldarimGraphView", () => {
         expect.any(Object)
       )
     );
+
+    expect(mockedGetPipelineRun).not.toHaveBeenCalled();
+    expect(mockedGetPipelineRunActivity).not.toHaveBeenCalled();
   });
 
   it("selects base commit on commit click", async () => {
@@ -205,5 +233,70 @@ describe("NoldarimGraphView", () => {
     await waitFor(() => {
       expect(screen.queryByText("old11111")).not.toBeInTheDocument();
     });
+  });
+
+  it("fetches selected run details on demand when user selects a run node", async () => {
+    mockedListPipelineRuns.mockResolvedValue({
+      ProjectID: "proj-1",
+      ProjectName: "proj-1",
+      RepositoryPath: "/tmp/repo",
+      Runs: {
+        "run-1": {
+          id: "run-1",
+          project_id: "proj-1",
+          name: "Pipeline",
+          status: 2,
+          start_commit_sha: "bbb222",
+          head_commit_sha: "aaa111",
+          step_results: [
+            {
+              id: "sr-1",
+              pipeline_run_id: "run-1",
+              step_id: "s1",
+              step_name: "Step 1",
+              step_index: 0,
+              status: 2,
+              commit_sha: "aaa111",
+              commit_message: "step 1",
+              git_diff: "diff",
+              files_changed: 1,
+              insertions: 1,
+              deletions: 0,
+              input_tokens: 10,
+              output_tokens: 10,
+              cache_read_tokens: 0,
+              cache_create_tokens: 0,
+              agent_output: "ok",
+              duration: 100_000_000
+            }
+          ],
+          created_at: "2026-02-14T10:00:00Z"
+        }
+      }
+    });
+
+    renderGraph();
+    const runNodeTitle = await screen.findByText("Pipeline");
+    expect(mockedGetPipelineRun).not.toHaveBeenCalled();
+    expect(mockedGetPipelineRunActivity).not.toHaveBeenCalled();
+
+    fireEvent.click(runNodeTitle);
+
+    await waitFor(() => {
+      expect(mockedGetPipelineRun).toHaveBeenCalledWith("http://localhost:8080", "run-1");
+      expect(mockedGetPipelineRunActivity).toHaveBeenCalledWith("http://localhost:8080", "run-1");
+    });
+  });
+});
+
+describe("mergeAnimatedEdges", () => {
+  it("deduplicates edges that are both active and exiting", () => {
+    const edge = (id: string) => ({ id } as unknown as import("@xyflow/react").Edge);
+    const merged = mergeAnimatedEdges(
+      [edge("edge-1"), edge("edge-2")],
+      [edge("edge-1"), edge("edge-3")]
+    );
+
+    expect(merged.map((edge) => edge.id)).toEqual(["edge-1", "edge-2", "edge-3"]);
   });
 });

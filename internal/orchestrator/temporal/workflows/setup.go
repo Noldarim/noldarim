@@ -1,4 +1,4 @@
-// Copyright (C) 2026 Noldarim
+// Copyright (C) 2025-2026 Noldarim
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 package workflows
@@ -166,6 +166,7 @@ func SetupWorkflow(ctx workflow.Context, input types.PipelineSetupInput) (*types
 	if err != nil {
 		logger.Error("Failed to save run step snapshots", "error", err)
 		output.Error = fmt.Sprintf("Failed to save run step snapshots: %v", err)
+		markSetupFailed(orchestratorCtx, input.RunID, output.Error)
 		return output, err
 	}
 	logger.Info("Run step snapshots saved", "runID", input.RunID, "steps", len(input.Steps))

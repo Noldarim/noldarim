@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useMemo, useReducer, useRef, type FormEvent } from "react";
 
 import type { PipelineDraft, StepDraft } from "../lib/types";

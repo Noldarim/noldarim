@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 /** Shared formatting utilities used across components. */
 
 export function formatTimestamp(value?: string): string {

@@ -1,3 +1,6 @@
+// Copyright (C) 2025-2026 Noldarim
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Background, Controls, ReactFlow, applyNodeChanges, type Edge, type EdgeTypes, type Node, type NodeChange, type NodeTypes } from "@xyflow/react";
 
@@ -119,6 +122,28 @@ function buildLiveStepResults(args: {
 
 const EDGE_ANIM_DURATION = 300;
 
+function runVersionTime(run?: PipelineRun | null): number {
+  if (!run) return 0;
+  const updated = run.updated_at ? Date.parse(run.updated_at) : Number.NaN;
+  if (!Number.isNaN(updated)) return updated;
+  const created = run.created_at ? Date.parse(run.created_at) : Number.NaN;
+  return Number.isNaN(created) ? 0 : created;
+}
+
+function pickPreferredRun(listRun: PipelineRun | null, detailsRun: PipelineRun | null): PipelineRun | null {
+  if (!listRun) return detailsRun;
+  if (!detailsRun) return listRun;
+  return runVersionTime(detailsRun) >= runVersionTime(listRun)
+    ? { ...listRun, ...detailsRun }
+    : listRun;
+}
+
+export function mergeAnimatedEdges(animatedEdges: Edge[], exitingEdges: Edge[]): Edge[] {
+  if (exitingEdges.length === 0) return animatedEdges;
+  const activeIds = new Set(animatedEdges.map((edge) => edge.id));
+  return [...animatedEdges, ...exitingEdges.filter((edge) => !activeIds.has(edge.id))];
+}
+
 /**
  * Diffs edges by ID between renders and tags new edges with "edge-entering"
  * and keeps removed edges temporarily with "edge-exiting" so they can animate out.
@@ -179,7 +204,7 @@ function useAnimatedEdges(targetEdges: Edge[]): Edge[] {
   }, [result.removed]);
 
   return useMemo(
-    () => (exitingEdges.length > 0 ? [...result.animated, ...exitingEdges] : result.animated),
+    () => mergeAnimatedEdges(result.animated, exitingEdges),
     [result.animated, exitingEdges]
   );
 }
@@ -471,7 +496,9 @@ export function NoldarimGraphView({
 
   const selectedRun = useMemo(() => {
     if (!selectedRunId) return null;
-    return mergedRunDetails[selectedRunId]?.run || mergedRuns.find((run) => run.id === selectedRunId) || null;
+    const detailsRun = mergedRunDetails[selectedRunId]?.run ?? null;
+    const listRun = mergedRuns.find((run) => run.id === selectedRunId) ?? null;
+    return pickPreferredRun(listRun, detailsRun);
   }, [selectedRunId, mergedRunDetails, mergedRuns]);
 
   const selectedActivities = useMemo(() => {
@@ -537,7 +564,12 @@ export function NoldarimGraphView({
 
   const ensureRunDetails = useCallback(async (targetRunId: string) => {
     if (loadingRunDetailsRef.current.has(targetRunId)) return;
-    if (useProjectGraphStore.getState().expandedRunData[targetRunId]) return;
+
+    const storeState = useProjectGraphStore.getState();
+    const cached = storeState.expandedRunData[targetRunId];
+    const listRun = storeState.runs.find((run) => run.id === targetRunId) ?? null;
+    const cachedIsFresh = cached && (!listRun || runVersionTime(cached.run) >= runVersionTime(listRun));
+    if (cachedIsFresh) return;
 
     loadingRunDetailsRef.current.add(targetRunId);
     try {
@@ -560,6 +592,7 @@ export function NoldarimGraphView({
       fetchRunsAbortRef.current = null;
       fetchCommitsAbortRef.current = null;
       useProjectGraphStore.getState().reset();
+      loadingRunDetailsRef.current.clear();
       setCommits([]);
       setCommitsError(null);
       setSelection(null);
@@ -587,13 +620,6 @@ export function NoldarimGraphView({
       void ensureRunDetails(selection.runId);
     }
   }, [selection, ensureRunDetails]);
-
-  // Eagerly load run details for all runs so patch nodes can show config
-  useEffect(() => {
-    for (const run of mergedRuns) {
-      void ensureRunDetails(run.id);
-    }
-  }, [mergedRuns, ensureRunDetails]);
 
   useEffect(() => {
     if (phase === "completed" || phase === "failed" || phase === "cancelled") {
