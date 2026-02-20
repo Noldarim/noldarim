@@ -1,0 +1,144 @@
+/* Sandbox page layout */
+.sandbox-page {
+  display: flex;
+  height: 100vh;
+  overflow: hidden;
+  background: var(--bg-base);
+}
+
+.sandbox-controls {
+  width: 280px;
+  min-width: 280px;
+  overflow-y: auto;
+  border-right: 1px solid var(--border-default);
+}
+
+.sandbox-main {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* Tab bar */
+.sandbox-tab-bar {
+  display: flex;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+  background: var(--bg-surface);
+  overflow-x: auto;
+}
+
+.sandbox-tab {
+  padding: var(--space-xs) var(--space-md);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-family: var(--font-body);
+  font-size: 0.8rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.sandbox-tab:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.sandbox-tab--active {
+  background: var(--accent-gold-soft);
+  border-color: var(--border-gold);
+  color: var(--accent-gold-text);
+}
+
+/* Graph area */
+.sandbox-graph-area {
+  flex: 1;
+  position: relative;
+}
+
+.sandbox-graph-tab {
+  width: 100%;
+  height: 100%;
+}
+
+.sandbox-graph-tab .run-graph-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* Run list in controls */
+.sandbox-run-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+}
+
+.sandbox-run-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs);
+  border-radius: var(--radius-sm);
+  background: var(--bg-inset);
+  font-size: 0.75rem;
+}
+
+.sandbox-run-name {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-secondary);
+}
+
+.sandbox-run-steps {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.sandbox-btn-small {
+  padding: 2px 6px;
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 0.8rem;
+  line-height: 1;
+}
+
+.sandbox-btn-small:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+
+.sandbox-btn-danger:hover {
+  border-color: var(--border-rose);
+  color: var(--accent-rose);
+}
+
+/* Dev nav toggle in header */
+.sandbox-nav-toggle {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--border-gold);
+  border-radius: var(--radius-sm);
+  background: var(--accent-gold-soft);
+  color: var(--accent-gold-text);
+  font-family: var(--font-body);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all var(--transition-fast);
+}
+
+.sandbox-nav-toggle:hover {
+  background: var(--accent-gold);
+  color: var(--bg-base);
+}
