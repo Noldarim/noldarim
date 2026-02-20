@@ -206,6 +206,7 @@ func (w *Worker) registerActivities() {
 	// Register Pipeline Data activities
 	w.worker.RegisterActivity(w.pipelineDataActivities.SavePipelineRunActivity)
 	w.worker.RegisterActivity(w.pipelineDataActivities.SaveStepResultActivity)
+	w.worker.RegisterActivity(w.pipelineDataActivities.SaveRunStepSnapshotsActivity)
 	w.worker.RegisterActivity(w.pipelineDataActivities.GetPipelineRunActivity)
 	w.worker.RegisterActivity(w.pipelineDataActivities.UpdatePipelineRunStatusActivity)
 	w.worker.RegisterActivity(w.pipelineDataActivities.GetLatestPipelineRunActivity)
@@ -278,6 +279,7 @@ func (w *Worker) GetRegisteredActivities() []string {
 		"WriteTaskFileActivity",
 		"SavePipelineRunActivity",
 		"SaveStepResultActivity",
+		"SaveRunStepSnapshotsActivity",
 		"GetPipelineRunActivity",
 		"UpdatePipelineRunStatusActivity",
 		"GetLatestPipelineRunActivity",

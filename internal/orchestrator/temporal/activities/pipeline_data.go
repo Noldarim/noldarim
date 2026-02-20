@@ -5,11 +5,13 @@ package activities
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 
-	"go.temporal.io/sdk/activity"
+	"github.com/noldarim/noldarim/internal/orchestrator/models"
 	"github.com/noldarim/noldarim/internal/orchestrator/services"
 	"github.com/noldarim/noldarim/internal/orchestrator/temporal/types"
+	"go.temporal.io/sdk/activity"
 )
 
 // PipelineDataActivities provides data activities for pipeline operations
@@ -34,7 +36,8 @@ func (a *PipelineDataActivities) SavePipelineRunActivity(ctx context.Context, in
 	// Check if run exists
 	existing, err := a.dataService.GetPipelineRun(ctx, input.Run.ID)
 	if err != nil {
-		logger.Debug("Pipeline run not found, will create new", "runID", input.Run.ID)
+		logger.Error("Failed to check for existing pipeline run", "error", err)
+		return fmt.Errorf("failed to check for existing pipeline run: %w", err)
 	}
 
 	if existing != nil {
@@ -70,7 +73,8 @@ func (a *PipelineDataActivities) SaveStepResultActivity(ctx context.Context, inp
 	// Check if result exists
 	existing, err := a.dataService.GetStepResult(ctx, input.Result.ID)
 	if err != nil {
-		logger.Debug("Step result not found, will create new", "resultID", input.Result.ID)
+		logger.Error("Failed to check for existing step result", "error", err)
+		return fmt.Errorf("failed to check for existing step result: %w", err)
 	}
 
 	if existing != nil {
@@ -89,6 +93,42 @@ func (a *PipelineDataActivities) SaveStepResultActivity(ctx context.Context, inp
 		logger.Info("Successfully created step result", "resultID", input.Result.ID)
 	}
 
+	return nil
+}
+
+// SaveRunStepSnapshotsActivity saves run step config snapshots to the database.
+func (a *PipelineDataActivities) SaveRunStepSnapshotsActivity(ctx context.Context, input types.SaveRunStepSnapshotsActivityInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Saving run step snapshots", "runID", input.RunID, "steps", len(input.Steps))
+
+	activity.RecordHeartbeat(ctx, "Saving run step snapshots")
+
+	snapshots := make([]models.RunStepSnapshot, 0, len(input.Steps))
+	for idx, step := range input.Steps {
+		agentConfigJSON := "{}"
+		if step.AgentConfig != nil {
+			cfgBytes, err := json.Marshal(step.AgentConfig)
+			if err != nil {
+				return fmt.Errorf("failed to marshal agent config for step %s: %w", step.StepID, err)
+			}
+			agentConfigJSON = string(cfgBytes)
+		}
+
+		snapshots = append(snapshots, models.RunStepSnapshot{
+			RunID:           input.RunID,
+			StepID:          step.StepID,
+			StepIndex:       idx,
+			StepName:        step.Name,
+			AgentConfigJSON: agentConfigJSON,
+			DefinitionHash:  models.ComputeStepDefinitionHash(step),
+		})
+	}
+
+	if err := a.dataService.SaveRunStepSnapshots(ctx, snapshots); err != nil {
+		return fmt.Errorf("failed to save run step snapshots: %w", err)
+	}
+
+	logger.Info("Saved run step snapshots", "runID", input.RunID, "count", len(snapshots))
 	return nil
 }
 

@@ -97,7 +97,7 @@ func (a *DataActivities) DeleteTaskActivity(ctx context.Context, taskID string) 
 	activity.RecordHeartbeat(ctx, "Deleting task")
 
 	// Delete the task using the data service - idempotent (returns success if not found)
-	if err := a.dataService.DeleteTask(ctx, "", taskID); err != nil {
+	if err := a.dataService.DeleteTask(ctx, taskID); err != nil {
 		// Check if it's a not found error - that's OK for idempotency
 		if err.Error() == "record not found" {
 			logger.Info("Task already deleted or doesn't exist", "taskID", taskID)
@@ -120,7 +120,7 @@ func (a *DataActivities) UpdateTaskStatusActivity(ctx context.Context, input typ
 	activity.RecordHeartbeat(ctx, "Updating task status")
 
 	// Update the task status using the data service
-	if err := a.dataService.UpdateTaskStatus(ctx, input.ProjectID, input.TaskID, input.Status); err != nil {
+	if err := a.dataService.UpdateTaskStatus(ctx, input.TaskID, input.Status); err != nil {
 		logger.Error("Failed to update task status", "error", err)
 		return fmt.Errorf("failed to update task status: %w", err)
 	}

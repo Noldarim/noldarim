@@ -130,7 +130,7 @@ func (ps *PipelineService) ToggleTask(ctx context.Context, projectID, taskID str
 	if task.Status == models.TaskStatusCompleted {
 		newStatus = models.TaskStatusPending
 	}
-	if err := ps.data.UpdateTaskStatus(ctx, projectID, taskID, newStatus); err != nil {
+	if err := ps.data.UpdateTaskStatus(ctx, taskID, newStatus); err != nil {
 		return 0, fmt.Errorf("failed to update task status: %w", err)
 	}
 	getPipelineLog().Info().Str("project_id", projectID).Str("task_id", taskID).Str("new_status", newStatus.String()).Msg("Task toggled")
@@ -139,7 +139,7 @@ func (ps *PipelineService) ToggleTask(ctx context.Context, projectID, taskID str
 
 // DeleteTask deletes a task by ID.
 func (ps *PipelineService) DeleteTask(ctx context.Context, projectID, taskID string) error {
-	if err := ps.data.DeleteTask(ctx, projectID, taskID); err != nil {
+	if err := ps.data.DeleteTask(ctx, taskID); err != nil {
 		return fmt.Errorf("failed to delete task: %w", err)
 	}
 	getPipelineLog().Info().Str("project_id", projectID).Str("task_id", taskID).Msg("Deleted task")

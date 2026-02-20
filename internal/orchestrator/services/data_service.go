@@ -6,11 +6,11 @@ package services
 import (
 	"context"
 	"fmt"
-	"strings"
 	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/logger"
 	"github.com/noldarim/noldarim/internal/orchestrator/database"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
+	"strings"
 	"sync"
 	"time"
 
@@ -94,7 +94,7 @@ func (ds *DataService) LoadTasks(ctx context.Context, projectID string) (map[str
 }
 
 // UpdateTaskStatus updates a task's status in the database
-func (ds *DataService) UpdateTaskStatus(ctx context.Context, projectID, taskID string, newStatus models.TaskStatus) error {
+func (ds *DataService) UpdateTaskStatus(ctx context.Context, taskID string, newStatus models.TaskStatus) error {
 	return ds.db.UpdateTaskStatus(ctx, taskID, newStatus)
 }
 
@@ -104,7 +104,7 @@ func (ds *DataService) UpdateTaskGitDiff(ctx context.Context, taskID, gitDiff st
 }
 
 // DeleteTask deletes a task from the database
-func (ds *DataService) DeleteTask(ctx context.Context, projectID, taskID string) error {
+func (ds *DataService) DeleteTask(ctx context.Context, taskID string) error {
 	return ds.db.DeleteTask(ctx, taskID)
 }
 
@@ -358,6 +358,11 @@ func (ds *DataService) UpdateStepResult(ctx context.Context, result *models.Step
 // UpdateStepResultStatus updates a step result's status
 func (ds *DataService) UpdateStepResultStatus(ctx context.Context, resultID string, status models.StepStatus) error {
 	return ds.db.UpdateStepResultStatus(ctx, resultID, status)
+}
+
+// SaveRunStepSnapshots persists executed step configuration snapshots for a run.
+func (ds *DataService) SaveRunStepSnapshots(ctx context.Context, snapshots []models.RunStepSnapshot) error {
+	return ds.db.SaveRunStepSnapshots(ctx, snapshots)
 }
 
 // GetRecentSuccessfulRunsWithSteps retrieves recent successful pipeline runs for a project

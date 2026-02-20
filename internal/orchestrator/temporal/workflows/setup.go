@@ -104,6 +104,11 @@ func SetupWorkflow(ctx workflow.Context, input types.PipelineSetupInput) (*types
 		}
 		if parentRun.Run != nil {
 			startCommit = parentRun.Run.GetCommitAfterStep(input.ForkAfterStepID)
+			if startCommit == "" && input.ForkAfterStepID != "" {
+				logger.Warn("Fork step not found in parent run, falling back to base commit",
+					"parentRunID", input.ForkFromRunID,
+					"forkAfterStep", input.ForkAfterStepID)
+			}
 			logger.Info("Resolved fork start commit",
 				"parentRunID", input.ForkFromRunID,
 				"forkAfterStep", input.ForkAfterStepID,
@@ -151,6 +156,19 @@ func SetupWorkflow(ctx workflow.Context, input types.PipelineSetupInput) (*types
 		return output, err
 	}
 	logger.Info("PipelineRun record created", "runID", input.RunID)
+
+	// Persist step config snapshots for historical edge-level inspection and reruns.
+	err = workflow.ExecuteActivity(orchestratorCtx, "SaveRunStepSnapshotsActivity",
+		types.SaveRunStepSnapshotsActivityInput{
+			RunID: input.RunID,
+			Steps: input.Steps,
+		}).Get(ctx, nil)
+	if err != nil {
+		logger.Error("Failed to save run step snapshots", "error", err)
+		output.Error = fmt.Sprintf("Failed to save run step snapshots: %v", err)
+		return output, err
+	}
+	logger.Info("Run step snapshots saved", "runID", input.RunID, "steps", len(input.Steps))
 
 	// =========================================================================
 	// Phase 3: Create infrastructure (with saga compensations)

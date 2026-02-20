@@ -750,8 +750,12 @@ components:
           type: string
         status:
           type: integer
-          description: "0=pending, 1=running, 2=completed, 3=failed"
-          enum: [0, 1, 2, 3]
+          description: "Pipeline run lifecycle state"
+          enum:
+            - 0  # pending — queued but not yet started
+            - 1  # running — actively executing steps
+            - 2  # completed — all steps finished successfully
+            - 3  # failed — stopped due to error or cancellation
         parent_run_id:
           type: string
           description: Set if this run was forked from another
@@ -801,6 +805,11 @@ components:
           items:
             $ref: "#/components/schemas/StepResult"
           description: Included when preloaded (optional)
+        step_snapshots:
+          type: array
+          items:
+            $ref: "#/components/schemas/RunStepSnapshot"
+          description: Step config snapshots captured at run start (optional)
 
     # --- models.StepResult (pipeline.go) ---
     # Status is a Go int iota: 0=pending, 1=running, 2=completed, 3=failed, 4=skipped
@@ -819,8 +828,13 @@ components:
           description: Order of execution (0, 1, 2...)
         status:
           type: integer
-          description: "0=pending, 1=running, 2=completed, 3=failed, 4=skipped"
-          enum: [0, 1, 2, 3, 4]
+          description: "Step execution state"
+          enum:
+            - 0  # pending — not yet started
+            - 1  # running — agent is executing this step
+            - 2  # completed — finished successfully with a commit
+            - 3  # failed — agent error or timeout
+            - 4  # skipped — reused from a parent run (fork)
         commit_sha:
           type: string
         commit_message:
@@ -862,6 +876,27 @@ components:
           type: string
           format: date-time
           nullable: true
+
+    # --- models.RunStepSnapshot (pipeline.go) ---
+    RunStepSnapshot:
+      type: object
+      properties:
+        run_id:
+          type: string
+        step_id:
+          type: string
+        step_index:
+          type: integer
+        step_name:
+          type: string
+        agent_config_json:
+          type: string
+          description: JSON string of the step's agent config at execution time
+        definition_hash:
+          type: string
+        created_at:
+          type: string
+          format: date-time
 
     # --- Event envelopes ---
 

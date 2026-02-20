@@ -12,6 +12,7 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
 )
 
@@ -43,20 +44,33 @@ func NewGormDB(cfg *config.DatabaseConfig) (*GormDB, error) {
 
 // AutoMigrate runs database migrations
 func (db *GormDB) AutoMigrate() error {
-	return db.db.AutoMigrate(
+	if err := db.db.AutoMigrate(
 		&models.Project{},
 		&models.Task{},
 		&models.AIActivityRecord{},
 		&models.Pipeline{},
 		&models.PipelineRun{},
 		&models.StepResult{},
-	)
+		&models.RunStepSnapshot{},
+	); err != nil {
+		return err
+	}
+
+	// Migration path for existing databases: enforce deterministic snapshot ordering.
+	if !db.db.Migrator().HasIndex(&models.RunStepSnapshot{}, "idx_run_step_snapshots_run_step_index") {
+		if err := db.db.Migrator().CreateIndex(&models.RunStepSnapshot{}, "idx_run_step_snapshots_run_step_index"); err != nil {
+			return fmt.Errorf("failed to create run_step_snapshots order index (run_id, step_index): %w", err)
+		}
+	}
+
+	return nil
 }
 
 // ValidateSchema checks if GORM models match the database schema
 func (db *GormDB) ValidateSchema() error {
 	var missingTables []string
 	var missingColumns []string
+	var missingIndexes []string
 
 	// Check if tables exist and have the correct structure
 	if !db.db.Migrator().HasTable(&models.Project{}) {
@@ -69,6 +83,10 @@ func (db *GormDB) ValidateSchema() error {
 
 	if !db.db.Migrator().HasTable(&models.AIActivityRecord{}) {
 		missingTables = append(missingTables, "ai_activity_records")
+	}
+
+	if !db.db.Migrator().HasTable(&models.RunStepSnapshot{}) {
+		missingTables = append(missingTables, "run_step_snapshots")
 	}
 
 	if len(missingTables) > 0 {
@@ -105,8 +123,26 @@ func (db *GormDB) ValidateSchema() error {
 		}
 	}
 
+	// Check for required columns in run_step_snapshots table.
+	runStepSnapshotColumns := []string{
+		"run_id", "step_id", "step_index", "step_name", "agent_config_json", "definition_hash",
+	}
+	for _, col := range runStepSnapshotColumns {
+		if !db.db.Migrator().HasColumn(&models.RunStepSnapshot{}, col) {
+			missingColumns = append(missingColumns, fmt.Sprintf("run_step_snapshots.%s", col))
+		}
+	}
+
+	if !db.db.Migrator().HasIndex(&models.RunStepSnapshot{}, "idx_run_step_snapshots_run_step_index") {
+		missingIndexes = append(missingIndexes, "run_step_snapshots.idx_run_step_snapshots_run_step_index")
+	}
+
 	if len(missingColumns) > 0 {
 		return fmt.Errorf("missing columns: %v\n\n💡 Run 'make migrate' to add the required columns", missingColumns)
+	}
+
+	if len(missingIndexes) > 0 {
+		return fmt.Errorf("missing indexes: %v\n\n💡 Run 'make migrate' to add the required indexes", missingIndexes)
 	}
 
 	return nil
@@ -483,6 +519,9 @@ func (db *GormDB) GetPipelineRun(ctx context.Context, runID string) (*models.Pip
 		Preload("StepResults", func(db *gorm.DB) *gorm.DB {
 			return db.Order("step_index ASC")
 		}).
+		Preload("StepSnapshots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_index ASC")
+		}).
 		First(&run, "id = ?", runID).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
@@ -493,10 +532,16 @@ func (db *GormDB) GetPipelineRun(ctx context.Context, runID string) (*models.Pip
 	return &run, nil
 }
 
-// GetPipelineRunsByProject retrieves all pipeline runs for a project
+// GetPipelineRunsByProject retrieves all pipeline runs for a project with step results
 func (db *GormDB) GetPipelineRunsByProject(ctx context.Context, projectID string) ([]*models.PipelineRun, error) {
 	var runs []*models.PipelineRun
 	err := db.db.WithContext(ctx).
+		Preload("StepResults", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_index ASC")
+		}).
+		Preload("StepSnapshots", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_index ASC")
+		}).
 		Where("project_id = ?", projectID).
 		Order("created_at DESC").
 		Find(&runs).Error
@@ -524,6 +569,9 @@ func (db *GormDB) GetLatestPipelineRun(ctx context.Context) (*models.PipelineRun
 	var run models.PipelineRun
 	err := db.db.WithContext(ctx).
 		Preload("StepResults", func(db *gorm.DB) *gorm.DB {
+			return db.Order("step_index ASC")
+		}).
+		Preload("StepSnapshots", func(db *gorm.DB) *gorm.DB {
 			return db.Order("step_index ASC")
 		}).
 		Order("created_at DESC").
@@ -559,6 +607,25 @@ func (db *GormDB) UpdatePipelineRun(ctx context.Context, run *models.PipelineRun
 // DeletePipelineRun deletes a pipeline run and its step results
 func (db *GormDB) DeletePipelineRun(ctx context.Context, runID string) error {
 	return db.db.WithContext(ctx).Delete(&models.PipelineRun{}, "id = ?", runID).Error
+}
+
+// SaveRunStepSnapshots inserts or updates step snapshots for a run.
+func (db *GormDB) SaveRunStepSnapshots(ctx context.Context, snapshots []models.RunStepSnapshot) error {
+	if len(snapshots) == 0 {
+		return nil
+	}
+
+	return db.db.WithContext(ctx).
+		Clauses(clause.OnConflict{
+			Columns: []clause.Column{{Name: "run_id"}, {Name: "step_id"}},
+			DoUpdates: clause.AssignmentColumns([]string{
+				"step_index",
+				"step_name",
+				"agent_config_json",
+				"definition_hash",
+			}),
+		}).
+		Create(&snapshots).Error
 }
 
 // ============================================================================

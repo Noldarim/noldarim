@@ -46,13 +46,13 @@ type PipelineWorkflowInput struct {
 
 // PipelineWorkflowOutput represents the output from the PipelineWorkflow
 type PipelineWorkflowOutput struct {
-	Success       bool                     `json:"success"`
-	RunID         string                   `json:"run_id"`
-	BranchName    string                   `json:"branch_name"`
-	HeadCommitSHA string                   `json:"head_commit_sha"`
-	StepResults   []ProcessingStepOutput   `json:"step_results"`
-	Error         string                   `json:"error,omitempty"`
-	Duration      time.Duration            `json:"duration"`
+	Success       bool                   `json:"success"`
+	RunID         string                 `json:"run_id"`
+	BranchName    string                 `json:"branch_name"`
+	HeadCommitSHA string                 `json:"head_commit_sha"`
+	StepResults   []ProcessingStepOutput `json:"step_results"`
+	Error         string                 `json:"error,omitempty"`
+	Duration      time.Duration          `json:"duration"`
 }
 
 // ============================================================================
@@ -63,10 +63,11 @@ type PipelineWorkflowOutput struct {
 // SetupWorkflow handles ALL setup: DB record creation + infrastructure
 type PipelineSetupInput struct {
 	// Run identification
-	RunID      string `json:"run_id"`
-	PipelineID string `json:"pipeline_id,omitempty"` // Optional
-	ProjectID  string `json:"project_id"`
-	Name       string `json:"name"` // Pipeline/run name
+	RunID      string                  `json:"run_id"`
+	PipelineID string                  `json:"pipeline_id,omitempty"` // Optional
+	ProjectID  string                  `json:"project_id"`
+	Name       string                  `json:"name"` // Pipeline/run name
+	Steps      []models.StepDefinition `json:"steps"`
 
 	// Repository configuration
 	RepositoryPath string `json:"repository_path"`
@@ -177,8 +178,8 @@ type GenerateStepDocumentationActivityInput struct {
 	StepName     string   `json:"step_name"`
 	StepIndex    int      `json:"step_index"`
 	WorktreePath string   `json:"worktree_path"`
-	PromptUsed   string   `json:"prompt_used"`   // The prompt given to the agent
-	AgentOutput  string   `json:"agent_output"`  // Full output from agent
+	PromptUsed   string   `json:"prompt_used"`  // The prompt given to the agent
+	AgentOutput  string   `json:"agent_output"` // Full output from agent
 	GitDiff      string   `json:"git_diff"`
 	DiffStat     string   `json:"diff_stat"`
 	FilesChanged []string `json:"files_changed"`
@@ -224,6 +225,12 @@ type SavePipelineRunActivityInput struct {
 // SaveStepResultActivityInput represents input for saving step result to DB
 type SaveStepResultActivityInput struct {
 	Result *models.StepResult `json:"result"`
+}
+
+// SaveRunStepSnapshotsActivityInput represents input for saving run step snapshots to DB.
+type SaveRunStepSnapshotsActivityInput struct {
+	RunID string                  `json:"run_id"`
+	Steps []models.StepDefinition `json:"steps"`
 }
 
 // UpdatePipelineRunStatusActivityInput represents input for updating run status

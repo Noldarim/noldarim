@@ -172,7 +172,8 @@ type PipelineRun struct {
 	ErrorMessage string `gorm:"type:text" json:"error_message,omitempty"`
 
 	// Relations
-	StepResults []StepResult `gorm:"foreignKey:PipelineRunID;constraint:OnDelete:CASCADE" json:"step_results,omitempty"`
+	StepResults   []StepResult      `gorm:"foreignKey:PipelineRunID;constraint:OnDelete:CASCADE" json:"step_results,omitempty"`
+	StepSnapshots []RunStepSnapshot `gorm:"foreignKey:RunID;references:ID;constraint:OnDelete:CASCADE" json:"step_snapshots,omitempty"`
 }
 
 func (PipelineRun) TableName() string {
@@ -220,6 +221,23 @@ type StepResult struct {
 
 func (StepResult) TableName() string {
 	return "step_results"
+}
+
+// RunStepSnapshot stores executed step configuration for a specific pipeline run.
+// This enables historical edge-level config inspection and deterministic fork reruns.
+type RunStepSnapshot struct {
+	RunID           string `gorm:"type:text;primaryKey;index;uniqueIndex:idx_run_step_snapshots_run_step_index" json:"run_id"`
+	StepID          string `gorm:"type:text;primaryKey" json:"step_id"`
+	StepIndex       int    `gorm:"type:integer;not null;uniqueIndex:idx_run_step_snapshots_run_step_index" json:"step_index"`
+	StepName        string `gorm:"type:text" json:"step_name"`
+	AgentConfigJSON string `gorm:"type:text" json:"agent_config_json"`
+	DefinitionHash  string `gorm:"type:text;index" json:"definition_hash"`
+
+	CreatedAt time.Time `gorm:"autoCreateTime" json:"created_at"`
+}
+
+func (RunStepSnapshot) TableName() string {
+	return "run_step_snapshots"
 }
 
 // Helper methods

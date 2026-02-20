@@ -152,6 +152,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 		PipelineID:            input.PipelineID,
 		ProjectID:             input.ProjectID,
 		Name:                  input.Name,
+		Steps:                 input.Steps,
 		RepositoryPath:        input.RepositoryPath,
 		BranchName:            branchName,
 		BaseCommitSHA:         input.BaseCommitSHA,
