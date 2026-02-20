@@ -2,8 +2,10 @@ import React, { Component } from "react";
 import type { ErrorInfo, ReactNode } from "react";
 import ReactDOM from "react-dom/client";
 
+import { Toaster } from "sonner";
+
 import "@xyflow/react/dist/style.css";
-import "./styles.css";
+import "./styles/index.css";
 import App from "./App";
 
 class ErrorBoundary extends Component<
@@ -23,14 +25,12 @@ class ErrorBoundary extends Component<
   render() {
     if (this.state.error) {
       return (
-        <div style={{ padding: 40, fontFamily: "sans-serif" }}>
+        <div className="error-boundary">
           <h1>Something went wrong</h1>
-          <pre style={{ whiteSpace: "pre-wrap", color: "#b42318" }}>
-            {this.state.error.message}
-          </pre>
+          <pre>{this.state.error.message}</pre>
           <button
             onClick={() => this.setState({ error: null })}
-            style={{ marginTop: 16, padding: "8px 16px", cursor: "pointer" }}
+            className="primary-button"
           >
             Try again
           </button>
@@ -45,6 +45,7 @@ ReactDOM.createRoot(document.getElementById("root") as HTMLElement).render(
   <React.StrictMode>
     <ErrorBoundary>
       <App />
+      <Toaster theme="dark" position="bottom-right" richColors />
     </ErrorBoundary>
   </React.StrictMode>
 );

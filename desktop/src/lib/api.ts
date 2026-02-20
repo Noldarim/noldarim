@@ -4,6 +4,7 @@ import type {
   AgentDefaults,
   AIActivityBatchEvent,
   CancelPipelineResult,
+  CommitsLoadedEvent,
   PipelineRun,
   PipelineRunResult,
   PipelineRunsLoadedEvent,
@@ -14,6 +15,7 @@ import {
   AgentDefaultsSchema,
   AIActivityBatchEventSchema,
   CancelPipelineResultSchema,
+  CommitsLoadedEventSchema,
   PipelineRunResultSchema,
   PipelineRunSchema,
   PipelineRunsLoadedEventSchema,
@@ -58,6 +60,21 @@ export async function getProjects(baseUrl: string, init?: RequestInit): Promise<
 
 export async function getAgentDefaults(baseUrl: string, init?: RequestInit): Promise<AgentDefaults> {
   return requestJson(baseUrl, "/api/v1/agent/defaults", AgentDefaultsSchema, init);
+}
+
+export async function getCommits(
+  baseUrl: string,
+  projectId: string,
+  limit = 50,
+  init?: RequestInit
+): Promise<CommitsLoadedEvent> {
+  const clampedLimit = Math.max(1, Math.min(limit, 500));
+  return requestJson(
+    baseUrl,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/commits?limit=${clampedLimit}`,
+    CommitsLoadedEventSchema,
+    init
+  );
 }
 
 export async function startPipeline(

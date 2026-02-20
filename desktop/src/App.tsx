@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { toast } from "sonner";
 
 import {
   cancelPipeline,
@@ -11,15 +12,18 @@ import { pipelineTemplates } from "./lib/templates";
 import { isLiveRun } from "./lib/run-phase";
 import { messageFromError } from "./lib/formatting";
 import type { AgentDefaults, PipelineDraft, Project } from "./lib/types";
-import { StepDetailsDrawer } from "./components/StepDetailsDrawer";
-import { PipelineForm } from "./components/PipelineForm";
 import { NoldarimGraphView } from "./components/NoldarimGraphView";
-import type { StepSelection } from "./components/NoldarimGraphView";
-import { RunToolbar } from "./components/RunToolbar";
-import { ServerSettings } from "./components/ServerSettings";
+import { FloatingProjectSelector } from "./components/FloatingProjectSelector";
+import { FloatingRunStatus } from "./components/FloatingRunStatus";
+import { PipelineFormDialog } from "./components/PipelineFormDialog";
 import { useRunStore } from "./state/run-store";
 import { useRunConnection } from "./hooks/useRunConnection";
-import { useActivitiesByStep } from "./state/selectors";
+
+import { DevNavToggle } from "./sandbox/DevNavToggle";
+
+const LazyGraphSandboxPage = import.meta.env.DEV
+  ? lazy(() => import("./sandbox/GraphSandboxPage").then((m) => ({ default: m.GraphSandboxPage })))
+  : null;
 
 const serverUrlStorageKey = "noldarim.desktop.serverUrl";
 const defaultServerUrl = "http://127.0.0.1:8080";
@@ -29,21 +33,44 @@ function normalizeProjects(projectMap: Record<string, Project>): Project[] {
 }
 
 export default function App() {
-  const [serverUrl, setServerUrl] = useState<string>(() => localStorage.getItem(serverUrlStorageKey) || defaultServerUrl);
+  const [isSandbox, setIsSandbox] = useState(() => window.location.hash === "#sandbox");
+
+  useEffect(() => {
+    const onHashChange = () => setIsSandbox(window.location.hash === "#sandbox");
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
+
+  if (import.meta.env.DEV && isSandbox && LazyGraphSandboxPage) {
+    return (
+      <main className="app-shell">
+        <Suspense fallback={<p className="muted-text">Loading sandbox...</p>}>
+          <LazyGraphSandboxPage />
+        </Suspense>
+        <div className="floating-dev-toggle">
+          <DevNavToggle isSandbox={isSandbox} />
+        </div>
+      </main>
+    );
+  }
+
+  return <AppMain isSandbox={isSandbox} />;
+}
+
+function AppMain({ isSandbox }: { isSandbox: boolean }) {
+  const [serverUrl] = useState<string>(() => localStorage.getItem(serverUrlStorageKey) || defaultServerUrl);
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
-  const [connectionError, setConnectionError] = useState<string | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [selectedProjectId, setSelectedProjectId] = useState<string>("");
   const [agentDefaults, setAgentDefaults] = useState<AgentDefaults | null>(null);
-  const [selectedStepSelection, setSelectedStepSelection] = useState<StepSelection | null>(null);
+  const [selectedBaseCommitSha, setSelectedBaseCommitSha] = useState<string | null>(null);
+
+  const [isPipelineDialogOpen, setIsPipelineDialogOpen] = useState(false);
 
   // Zustand store selectors
   const phase = useRunStore((s) => s.phase);
   const runId = useRunStore((s) => s.runId);
-  const steps = useRunStore((s) => s.runDefinition.steps);
   const error = useRunStore((s) => s.error);
-  const stepExecutionById = useRunStore((s) => s.stepExecutionById);
-  const activitiesByStep = useActivitiesByStep();
 
   // Actions from getState() are stable references — safe to destructure outside
   // a selector hook. This avoids subscribing to action identity changes.
@@ -55,23 +82,12 @@ export default function App() {
   const hasAutoConnectedRef = useRef<boolean>(false);
   const connectAbortRef = useRef<AbortController | null>(null);
 
-  const selectedProject = useMemo(
-    () => projects.find((p) => p.id === selectedProjectId) ?? null,
-    [projects, selectedProjectId]
-  );
-
-  const selectedStepDraft = useMemo(
-    () => steps.find((step) => step.id === selectedStepSelection?.stepId) ?? null,
-    [steps, selectedStepSelection]
-  );
-
   const connect = useCallback(async () => {
     connectAbortRef.current?.abort();
     const controller = new AbortController();
     connectAbortRef.current = controller;
 
     setIsConnecting(true);
-    setConnectionError(null);
     useRunStore.getState().reportError(null);
     try {
       const { signal } = controller;
@@ -88,7 +104,7 @@ export default function App() {
       if (controller.signal.aborted) {
         return;
       }
-      setConnectionError(messageFromError(err));
+      toast.error(messageFromError(err));
     } finally {
       if (!controller.signal.aborted) {
         setIsConnecting(false);
@@ -102,6 +118,15 @@ export default function App() {
       void connect();
     }
   }, [connect]);
+
+  useEffect(() => {
+    setSelectedBaseCommitSha(null);
+  }, [selectedProjectId]);
+
+  const handleForkFromCommit = useCallback((sha: string) => {
+    setSelectedBaseCommitSha(sha);
+    setIsPipelineDialogOpen(true);
+  }, []);
 
   const onStart = useCallback(
     async (draft: PipelineDraft) => {
@@ -120,6 +145,7 @@ export default function App() {
       try {
         const result = await startPipeline(serverUrl, selectedProjectId, {
           name: rendered.name,
+          base_commit_sha: selectedBaseCommitSha || undefined,
           steps: rendered.steps.map((step) => ({
             step_id: step.id,
             name: step.name,
@@ -136,11 +162,6 @@ export default function App() {
 
         pipelineCreated = true;
         wsConnected(result.RunID);
-        setSelectedStepSelection(
-          rendered.steps[0]
-            ? { stepId: rendered.steps[0].id, runId: result.RunID }
-            : null
-        );
 
         startRealtime(selectedProjectId, result.RunID);
 
@@ -163,7 +184,7 @@ export default function App() {
         throw err;
       }
     },
-    [agentDefaults, closeRealtime, hydrateRun, runStarted, wsConnected, reset, selectedProjectId, serverUrl, startRealtime]
+    [agentDefaults, closeRealtime, hydrateRun, runStarted, wsConnected, reset, selectedProjectId, selectedBaseCommitSha, serverUrl, startRealtime]
   );
 
   const onCancel = useCallback(async () => {
@@ -182,87 +203,50 @@ export default function App() {
     }
   }, [closeRealtime, hydrateRun, runCancelling, runCancelled, runFailed, serverUrl, runId]);
 
-  // Close step details drawer on Escape key
-  useEffect(() => {
-    function handleKeyDown(e: KeyboardEvent) {
-      if (e.key === "Escape" && selectedStepSelection !== null) {
-        setSelectedStepSelection(null);
-      }
-    }
-    window.addEventListener("keydown", handleKeyDown);
-    return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [selectedStepSelection]);
-
   const runLocked = isLiveRun(phase);
 
   return (
     <main className="app-shell">
-      <header className="app-header">
-        <h1>Noldarim Desktop Pipeline Runner</h1>
-      </header>
+      <div className="graph-fullscreen">
+        <NoldarimGraphView
+          projectId={selectedProjectId}
+          serverUrl={serverUrl}
+          selectedBaseCommitSha={selectedBaseCommitSha}
+          onSelectBaseCommit={setSelectedBaseCommitSha}
+          onForkFromCommit={handleForkFromCommit}
+        />
 
-      <div className="app-grid">
-        <aside className="left-column">
-          <ServerSettings
-            serverUrl={serverUrl}
-            onServerUrlChange={setServerUrl}
-            onConnect={connect}
-            isConnecting={isConnecting}
-            connectionError={connectionError}
-          />
+        <FloatingProjectSelector
+          projects={projects}
+          selectedProjectId={selectedProjectId}
+          onSelectProject={setSelectedProjectId}
+          disabled={runLocked}
+        />
 
-          <section className="panel">
-            <h2>Project</h2>
-            <select
-              value={selectedProjectId}
-              onChange={(event) => setSelectedProjectId(event.target.value)}
-              disabled={projects.length === 0 || runLocked}
-            >
-              {projects.length === 0 && <option value="">No projects</option>}
-              {projects.map((project) => (
-                <option key={project.id} value={project.id}>
-                  {project.name}
-                </option>
-              ))}
-            </select>
-          </section>
-
-          <PipelineForm
-            templates={pipelineTemplates}
-            onStart={onStart}
-            disabled={isConnecting || !selectedProjectId || !agentDefaults || runLocked}
-          />
-        </aside>
-
-        <section className="center-column">
-          <RunToolbar
+        {runId && runLocked && (
+          <FloatingRunStatus
             runId={runId}
             phase={phase}
             onCancel={onCancel}
-            projectName={selectedProject?.name}
           />
-          <NoldarimGraphView
-            projectId={selectedProjectId}
-            serverUrl={serverUrl}
-            selectedStep={selectedStepSelection}
-            onSelectStep={setSelectedStepSelection}
-            onDeselectStep={() => setSelectedStepSelection(null)}
-          />
-          {error && <p className="error-text panel">{error}</p>}
-        </section>
-      </div>
+        )}
 
-      <StepDetailsDrawer
-        isOpen={selectedStepDraft !== null}
-        step={selectedStepDraft}
-        result={
-          selectedStepDraft
-            ? stepExecutionById[selectedStepDraft.id] ?? null
-            : null
-        }
-        events={selectedStepDraft ? activitiesByStep[selectedStepDraft.id] ?? [] : []}
-        onClose={() => setSelectedStepSelection(null)}
-      />
+        <PipelineFormDialog
+          isOpen={isPipelineDialogOpen}
+          onClose={() => setIsPipelineDialogOpen(false)}
+          templates={pipelineTemplates}
+          onStart={onStart}
+          disabled={isConnecting || !selectedProjectId || !agentDefaults || runLocked}
+          baseCommitSha={selectedBaseCommitSha}
+        />
+
+        {import.meta.env.DEV && (
+          <div className="floating-dev-toggle">
+            <DevNavToggle isSandbox={isSandbox} />
+          </div>
+        )}
+      </div>
+      {error && <p className="error-text panel">{error}</p>}
     </main>
   );
 }

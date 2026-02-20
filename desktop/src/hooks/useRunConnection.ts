@@ -50,6 +50,13 @@ export function useRunConnection(serverUrl: string) {
         getPipelineRunActivity(serverUrl, hRunId)
       ]);
       recordHydrateLatency(Math.round(performance.now() - start));
+      console.debug(
+        "[hydrateRun] run=%s status=%d step_results=%d",
+        hRun.id,
+        hRun.status,
+        hRun.step_results?.length ?? 0,
+        hRun.step_results?.map((sr) => `${sr.step_id}:${sr.status}`)
+      );
       snapshotApplied(hRun, activityBatch.Activities ?? []);
     },
     [serverUrl, snapshotApplied]

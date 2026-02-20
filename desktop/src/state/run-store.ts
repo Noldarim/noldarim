@@ -199,6 +199,13 @@ export const useRunStore = create<RunState & RunActions>()((set) => ({
       const draftStepIds = new Set(prev.runDefinition.steps.map((s) => s.id));
       const activityByStepId = rebuildActivityByStepId(activityByEventId, draftStepIds);
 
+      console.debug(
+        "[snapshotApplied] phase=%s stepResults=%d stepExecKeys=%o",
+        phase,
+        run.step_results?.length ?? 0,
+        Object.keys(stepExecutionById)
+      );
+
       return {
         run,
         phase,
