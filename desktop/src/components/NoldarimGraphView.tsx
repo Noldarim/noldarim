@@ -334,6 +334,7 @@ function ProjectGraphInner({
       nodeTypes={projectNodeTypes}
       edgeTypes={projectEdgeTypes}
       fitView
+      minZoom={0.1}
       nodesDraggable={false}
       nodesConnectable={false}
       elementsSelectable
