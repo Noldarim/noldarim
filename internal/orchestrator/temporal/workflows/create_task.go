@@ -22,8 +22,8 @@ const (
 
 // generateTaskQueueName wraps utils.GenerateTaskQueueName for use within workflows.
 // The actual implementation is in the utils package to enable sharing with dev tools.
-func generateTaskQueueName(title, taskID string) string {
-	return utils.GenerateTaskQueueName(title, taskID)
+func generateTaskQueueName(taskID string) string {
+	return utils.GenerateTaskQueueName(taskID)
 }
 
 // NOTE: compensation struct and runCompensations are now in compensation.go
@@ -171,7 +171,7 @@ func CreateTaskWorkflow(ctx workflow.Context, input types.CreateTaskWorkflowInpu
 	// Note: Git commits are part of project history, no compensation needed
 
 	// Generate dynamic task queue name for this task
-	taskQueueName := generateTaskQueueName(input.Title, taskID)
+	taskQueueName := generateTaskQueueName(taskID)
 	logger.Info("Generated task queue name", "taskQueue", taskQueueName)
 	logger.Info("Task file written and committed successfully", "filePath", writeFileResult.FilePath, "commitSuccess", commitResult.Success)
 

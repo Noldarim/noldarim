@@ -131,7 +131,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 	output.BranchName = branchName
 
 	// Generate task queue name for this run's container worker
-	runTaskQueue := generateTaskQueueName(input.Name, input.RunID)
+	runTaskQueue := generateTaskQueueName(input.RunID)
 
 	// =========================================================================
 	// Phase 1: Setup via Child Workflow

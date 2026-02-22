@@ -107,6 +107,11 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
   -a "export PATH=\$PATH:\$GOBIN" \
   -x
 
+# Install bun (JS runtime / package manager)
+RUN curl -fsSL https://bun.sh/install | bash
+ENV PATH=$PATH:$USER_HOME/.bun/bin
+RUN echo "export PATH=\$PATH:\$HOME/.bun/bin" >> $USER_HOME/.zshrc
+
 # Install Claude for user
 RUN curl -fsSL https://claude.ai/install.sh | bash -s latest
 ENV PATH=$PATH:$USER_HOME/.local/bin

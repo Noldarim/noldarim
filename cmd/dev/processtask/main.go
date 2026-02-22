@@ -109,7 +109,7 @@ func main() {
 	}
 
 	// Generate task queue name using the shared utility (same logic as workflow)
-	taskQueueName := utils.GenerateTaskQueueName(task.Title, *taskID)
+	taskQueueName := utils.GenerateTaskQueueName(*taskID)
 	fmt.Printf("Generated task queue: %s\n", taskQueueName)
 
 	// Create Temporal client with dynamic task queue

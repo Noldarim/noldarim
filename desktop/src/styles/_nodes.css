@@ -171,6 +171,37 @@
   box-shadow: 0 0 8px rgba(201, 168, 76, 0.2);
 }
 
+/* ── Run-from-here button on bare commits ── */
+.commit-node__run-btn {
+  all: unset;
+  position: absolute;
+  top: -8px;
+  left: -8px;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.2), rgba(52, 211, 153, 0.08));
+  border: 1px solid rgba(52, 211, 153, 0.4);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--status-success);
+  cursor: pointer;
+  opacity: 0;
+  transition: all var(--transition-fast);
+  z-index: 1;
+}
+
+.commit-node:hover .commit-node__run-btn {
+  opacity: 1;
+}
+
+.commit-node__run-btn:hover {
+  background: linear-gradient(135deg, rgba(52, 211, 153, 0.35), rgba(52, 211, 153, 0.15));
+  box-shadow: 0 0 8px rgba(52, 211, 153, 0.3);
+  transform: scale(1.15);
+}
+
 /* ── Shared commit-node parts ── */
 .commit-node__message {
   font-size: 0.68rem;

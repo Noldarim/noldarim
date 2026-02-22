@@ -199,5 +199,38 @@ export const pipelineTemplates: PipelineTemplate[] = [
         }
       ]
     }
+  },
+  {
+    id: "implement-verify-document",
+    name: "Simple Implement then 2x Verify + Document",
+    description: "Implement a task, then verify the implementation twice for quality, and update documentation",
+    draft: {
+      name: "Simple Implement then 2x Verify + Document",
+      variables: {
+        task: "describe the task here"
+      },
+      steps: [
+        {
+          id: "implement",
+          name: "Implement",
+          prompt: "Please do the following: {{.task}}"
+        },
+        {
+          id: "verify-1",
+          name: "Verify implementation",
+          prompt: "Please check all files from last commit and verify whether the implementation is safe, optimal, idiomatic, and easy to maintain. If you find any issues write them down to noldarim_planning folder and fix them."
+        },
+        {
+          id: "verify-2",
+          name: "Verify fixes",
+          prompt: "Please read the file written to noldarim_planning folder in last commit. Then read all the files changed in last two commits, and analyze the changes made in last two commits, and analyze if the implementation now has all the big issues fixed, and that there aren't any more antipatterns etc."
+        },
+        {
+          id: "document",
+          name: "Update documentation",
+          prompt: "Please check if any of the changes done in last 3 commits require any updates to documentation in docs/ folder."
+        }
+      ]
+    }
   }
 ];

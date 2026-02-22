@@ -4,40 +4,11 @@
 // Package utils provides shared utility functions for Temporal workflows and activities.
 package utils
 
-import (
-	"fmt"
-	"regexp"
-	"strings"
-)
+import "fmt"
 
-// GenerateTaskQueueName creates a sanitized task queue name from task title and ID.
-// This function is used by both CreateTaskWorkflow and dev tools to ensure
-// consistent task queue naming across the system.
-func GenerateTaskQueueName(title, taskID string) string {
-	// Remove special characters and convert to lowercase
-	reg := regexp.MustCompile(`[^a-zA-Z0-9\s-]`)
-	sanitized := reg.ReplaceAllString(title, "")
-
-	// Replace spaces with hyphens and convert to lowercase
-	sanitized = strings.ReplaceAll(strings.ToLower(strings.TrimSpace(sanitized)), " ", "-")
-
-	// Remove multiple consecutive hyphens
-	reg = regexp.MustCompile(`-+`)
-	sanitized = reg.ReplaceAllString(sanitized, "-")
-
-	// Trim hyphens from start and end
-	sanitized = strings.Trim(sanitized, "-")
-
-	// Ensure it's not empty
-	if sanitized == "" {
-		sanitized = "task"
-	}
-
-	// Limit length to avoid Temporal limits (max 1000 chars for task queue)
-	if len(sanitized) > 50 {
-		sanitized = sanitized[:50]
-		sanitized = strings.Trim(sanitized, "-")
-	}
-
-	return fmt.Sprintf("task-queue-%s-%s", sanitized, taskID)
+// GenerateTaskQueueName creates a deterministic task queue name from a task/run ID.
+// The name is an opaque Temporal identifier — only the ID is needed for uniqueness.
+// This function is used by both workflows and dev tools to ensure consistent naming.
+func GenerateTaskQueueName(taskID string) string {
+	return fmt.Sprintf("task-queue-%s", taskID)
 }

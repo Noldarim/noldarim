@@ -118,6 +118,11 @@ export const CommitNode = memo(function CommitNode({ data }: NodeProps<CommitNod
       <Handle id="run-source" type="source" position={Position.Right} />
       <Handle id="run-source-top" type="source" position={Position.Top} />
       {data.isForkPoint && <span className="commit-node__fork-indicator" />}
+      {canFork && (
+        <button type="button" className="commit-node__run-btn" onClick={handleFork} title="Run pipeline from here">
+          <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,0 10,5 1,10" /></svg>
+        </button>
+      )}
       {data.commitMessage && <span className="commit-node__message">{data.commitMessage}</span>}
       <span className={data.commitMessage ? "commit-node__sha commit-node__sha--secondary" : "commit-node__sha"}>
         {shortSha}
