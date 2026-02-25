@@ -399,6 +399,8 @@ export function NoldarimGraphView({
   const fetchCommitsRequestIdRef = useRef(0);
   const fetchCommitsAbortRef = useRef<AbortController | null>(null);
   const loadingRunDetailsRef = useRef(new Set<string>());
+  const pendingForkRunIdsRef = useRef(new Set<string>());
+  const forkPollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   const liveActivities = useMemo(
     () => Object.values(liveActivitiesByStep).flat(),
@@ -631,6 +633,40 @@ export function NoldarimGraphView({
     }
   }, [phase]);
 
+  const handleForkCreated = useCallback((forkRunId: string) => {
+    pendingForkRunIdsRef.current.add(forkRunId);
+    useProjectGraphStore.getState().requestRefresh();
+  }, []);
+
+  // Poll forked runs until they reach a terminal state so the graph shows full step_results.
+  useEffect(() => {
+    if (pendingForkRunIdsRef.current.size === 0) return;
+
+    const store = useProjectGraphStore.getState();
+    for (const forkId of pendingForkRunIdsRef.current) {
+      const run = runs.find((r) => r.id === forkId);
+      if (!run) continue;
+
+      // Clear cached details so ensureRunDetails re-fetches from server.
+      store.clearExpandedRunData(forkId);
+      loadingRunDetailsRef.current.delete(forkId);
+      void ensureRunDetails(forkId);
+
+      if (run.status === PipelineRunStatus.Completed || run.status === PipelineRunStatus.Failed) {
+        pendingForkRunIdsRef.current.delete(forkId);
+      }
+    }
+
+    if (pendingForkRunIdsRef.current.size > 0) {
+      clearTimeout(forkPollTimerRef.current);
+      forkPollTimerRef.current = setTimeout(() => {
+        useProjectGraphStore.getState().requestRefresh();
+      }, 3_000);
+    }
+
+    return () => clearTimeout(forkPollTimerRef.current);
+  }, [runs, ensureRunDetails]);
+
   const handleSelectRunEdge = useCallback((targetRunId: string) => {
     setSelection({ kind: "run-edge", runId: targetRunId });
     setDrawerOpen(true);
@@ -688,6 +724,7 @@ export function NoldarimGraphView({
         onClose={handleCloseDrawer}
         onSelectBaseCommit={onSelectBaseCommit}
         onRefreshed={() => useProjectGraphStore.getState().requestRefresh()}
+        onForkCreated={handleForkCreated}
       />
     </>
   );

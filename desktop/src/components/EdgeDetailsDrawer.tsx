@@ -28,6 +28,7 @@ type Props = {
   onClose: () => void;
   onSelectBaseCommit: (sha: string) => void;
   onRefreshed: () => void;
+  onForkCreated?: (runId: string) => void;
 };
 
 function parseSnapshots(run: PipelineRun | null): SnapshotStep[] {
@@ -119,7 +120,8 @@ export function EdgeDetailsDrawer({
   activities,
   onClose,
   onSelectBaseCommit,
-  onRefreshed
+  onRefreshed,
+  onForkCreated
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -306,7 +308,7 @@ export function EdgeDetailsDrawer({
       const forkAfterStepId = resolveForkAfterStepId(currentSelection.stepId, orderedStepResults);
       const sourceCommitSha = currentRun.start_commit_sha || currentRun.base_commit_sha;
 
-      await startPipeline(serverUrl, projectId, {
+      const result = await startPipeline(serverUrl, projectId, {
         name: `${currentRun.name} fork ${currentSelection.stepId}`,
         base_commit_sha: sourceCommitSha || undefined,
         fork_from_run_id: currentRun.id,
@@ -316,10 +318,8 @@ export function EdgeDetailsDrawer({
       });
       setActionInfo("Fork run started.");
       onRefreshed();
-      // Temporal workflow needs time to persist the run record.
-      // Schedule follow-up refreshes so the new run appears in the graph.
-      setTimeout(onRefreshed, 2_000);
-      setTimeout(onRefreshed, 5_000);
+      onForkCreated?.(result.RunID);
+      onClose();
     } catch (err) {
       setActionError(messageFromError(err));
     } finally {

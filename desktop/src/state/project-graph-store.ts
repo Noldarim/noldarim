@@ -24,6 +24,7 @@ export type ProjectGraphActions = {
   setLoading(isLoading: boolean): void;
   setError(error: string | null): void;
   setExpandedRunData(runId: string, run: PipelineRun, activities: AIActivityRecord[]): void;
+  clearExpandedRunData(runId: string): void;
   requestRefresh(): void;
   reset(): void;
 };
@@ -74,6 +75,14 @@ export const useProjectGraphStore = create<ProjectGraphState & ProjectGraphActio
         [runId]: { run, activities }
       }
     })),
+
+  clearExpandedRunData: (runId) =>
+    set((prev) => {
+      if (!prev.expandedRunData[runId]) return prev;
+      const next = { ...prev.expandedRunData };
+      delete next[runId];
+      return { expandedRunData: next };
+    }),
 
   requestRefresh: () =>
     set((prev) => ({ refreshToken: prev.refreshToken + 1 })),
