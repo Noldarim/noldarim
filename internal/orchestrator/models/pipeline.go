@@ -13,6 +13,14 @@ import (
 	"time"
 )
 
+// PipelineRunType distinguishes standard pipeline runs from promote runs.
+type PipelineRunType string
+
+const (
+	PipelineRunTypeStandard PipelineRunType = "standard"
+	PipelineRunTypePromote  PipelineRunType = "promote"
+)
+
 // PipelineRunStatus represents the status of a pipeline run
 type PipelineRunStatus int
 
@@ -139,6 +147,11 @@ type PipelineRun struct {
 	ProjectID  string            `gorm:"type:text;index" json:"project_id"`
 	Name       string            `gorm:"type:text" json:"name"` // Human-readable name for display
 	Status     PipelineRunStatus `gorm:"not null;default:0" json:"status"`
+
+	// Run type and promote metadata
+	RunType     PipelineRunType `gorm:"type:text;default:'standard'" json:"run_type"`
+	AutoPromote bool            `gorm:"default:false" json:"auto_promote"`
+	SourceRunID string          `gorm:"type:text" json:"source_run_id,omitempty"` // For promote: the run being merged
 
 	// Fork information (if this run branched from another)
 	ParentRunID     string `gorm:"type:text;index" json:"parent_run_id,omitempty"`

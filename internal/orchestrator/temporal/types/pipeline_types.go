@@ -42,6 +42,12 @@ type PipelineWorkflowInput struct {
 	ClaudeConfigPath      string `json:"claude_config_path"`
 	WorkspaceDir          string `json:"workspace_dir"`
 	OrchestratorTaskQueue string `json:"orchestrator_task_queue"`
+
+	// Main branch name (e.g. "main") — needed for auto-promote inside the workflow
+	MainBranch string `json:"main_branch,omitempty"`
+
+	// Auto-promote: queue for merge into main on successful completion
+	AutoPromote bool `json:"auto_promote,omitempty"`
 }
 
 // PipelineWorkflowOutput represents the output from the PipelineWorkflow
@@ -89,6 +95,9 @@ type PipelineSetupInput struct {
 
 	// Temporal tracking (parent workflow ID for DB record)
 	ParentWorkflowID string `json:"parent_workflow_id"`
+
+	// Auto-promote flag (persisted to DB for display)
+	AutoPromote bool `json:"auto_promote,omitempty"`
 }
 
 // PipelineSetupOutput represents output from the setup phase

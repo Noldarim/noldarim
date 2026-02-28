@@ -55,10 +55,11 @@ func (e TasksLoadedEvent) GetMetadata() Metadata {
 
 // CommitInfo represents a single commit in the event
 type CommitInfo struct {
-	Hash    string
-	Message string
-	Author  string
-	Parents []string
+	Hash      string
+	Message   string
+	Author    string
+	Parents   []string
+	Timestamp string `json:",omitempty"`
 }
 
 // CommitsLoadedEvent is sent when commit history has been loaded

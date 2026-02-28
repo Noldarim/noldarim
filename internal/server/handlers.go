@@ -6,6 +6,7 @@ package server
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"net/http"
 	"path/filepath"
 	"strconv"
@@ -13,6 +14,7 @@ import (
 
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 	"github.com/noldarim/noldarim/internal/orchestrator/services"
+	"github.com/noldarim/noldarim/internal/orchestrator/temporal/types"
 	"github.com/noldarim/noldarim/internal/protocol"
 
 	"github.com/go-chi/chi/v5"
@@ -39,6 +41,8 @@ type pipelineMutator interface {
 	DeleteTask(ctx context.Context, projectID, taskID string) error
 	StartPipeline(ctx context.Context, params services.StartPipelineParams) (*services.PipelineRunResult, error)
 	CancelPipeline(ctx context.Context, runID, reason string) (*services.CancelResult, error)
+	PromotePipeline(ctx context.Context, params services.PromotePipelineParams) (*services.PipelineRunResult, error)
+	GetMergeQueueState(ctx context.Context, projectID string) (*types.MergeQueueState, error)
 }
 
 // AgentDefaultsResponse provides server-side default agent configuration for desktop clients.
@@ -51,11 +55,12 @@ type AgentDefaultsResponse struct {
 
 // Handlers holds dependencies for HTTP handlers.
 type Handlers struct {
-	broadcaster *EventBroadcaster
-	data        dataReader
-	git         gitManager
-	pipeline    pipelineMutator
-	defaults    AgentDefaultsResponse
+	broadcaster   *EventBroadcaster
+	data          dataReader
+	git           gitManager
+	pipeline      pipelineMutator
+	defaults      AgentDefaultsResponse
+	defaultBranch string
 }
 
 // NewHandlers creates the handler set.
@@ -65,13 +70,18 @@ func NewHandlers(
 	git gitManager,
 	pipeline pipelineMutator,
 	defaults AgentDefaultsResponse,
+	defaultBranch string,
 ) *Handlers {
+	if defaultBranch == "" {
+		defaultBranch = "main"
+	}
 	return &Handlers{
-		broadcaster: broadcaster,
-		data:        data,
-		git:         git,
-		pipeline:    pipeline,
-		defaults:    defaults,
+		broadcaster:   broadcaster,
+		data:          data,
+		git:           git,
+		pipeline:      pipeline,
+		defaults:      defaults,
+		defaultBranch: defaultBranch,
 	}
 }
 
@@ -166,19 +176,31 @@ func (h *Handlers) GetCommits(w http.ResponseWriter, r *http.Request) {
 	}
 	defer gitHandle.Release()
 
-	commits, err := gitHandle.GetGitService().GetCommitHistory(ctx, project.RepositoryPath, limit)
+	branch := r.URL.Query().Get("branch")
+
+	var commits []services.GitCommit
+	if branch != "" {
+		commits, err = gitHandle.GetGitService().GetBranchCommitHistory(ctx, project.RepositoryPath, branch, limit)
+	} else {
+		commits, err = gitHandle.GetGitService().GetCommitHistory(ctx, project.RepositoryPath, limit)
+	}
 	if err != nil {
-		writeError(w, http.StatusInternalServerError, "Failed to load commits", err)
+		if errors.Is(err, services.ErrBranchNotFound) {
+			writeError(w, http.StatusNotFound, err.Error(), nil)
+		} else {
+			writeError(w, http.StatusInternalServerError, "Failed to load commits", err)
+		}
 		return
 	}
 
 	commitInfos := make([]protocol.CommitInfo, len(commits))
 	for i, c := range commits {
 		commitInfos[i] = protocol.CommitInfo{
-			Hash:    c.Hash,
-			Message: c.Message,
-			Author:  c.Author,
-			Parents: c.Parents,
+			Hash:      c.Hash,
+			Message:   c.Message,
+			Author:    c.Author,
+			Parents:   c.Parents,
+			Timestamp: c.Timestamp,
 		}
 	}
 
@@ -291,6 +313,13 @@ func (h *Handlers) GetAgentDefaults(w http.ResponseWriter, _ *http.Request) {
 	writeJSON(w, http.StatusOK, h.defaults)
 }
 
+// GetConfig handles GET /api/v1/config
+func (h *Handlers) GetConfig(w http.ResponseWriter, _ *http.Request) {
+	writeJSON(w, http.StatusOK, map[string]string{
+		"default_branch": h.defaultBranch,
+	})
+}
+
 // --- POST/PUT/DELETE handlers (direct service calls) ---
 
 // createProjectRequest is the JSON body for project creation.
@@ -399,6 +428,7 @@ type startPipelineRequest struct {
 	ForkFromRunID   string                     `json:"fork_from_run_id,omitempty"`
 	ForkAfterStepID string                     `json:"fork_after_step_id,omitempty"`
 	NoAutoFork      bool                       `json:"no_auto_fork,omitempty"`
+	AutoPromote     bool                       `json:"auto_promote,omitempty"`
 }
 
 type startPipelineStepRequest struct {
@@ -452,6 +482,7 @@ func (h *Handlers) StartPipeline(w http.ResponseWriter, r *http.Request) {
 		ForkFromRunID:   body.ForkFromRunID,
 		ForkAfterStepID: body.ForkAfterStepID,
 		NoAutoFork:      body.NoAutoFork,
+		AutoPromote:     body.AutoPromote,
 	})
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "Failed to start pipeline", err)
@@ -482,4 +513,47 @@ func (h *Handlers) CancelPipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// PromotePipeline handles POST /api/v1/pipelines/{runId}/promote
+func (h *Handlers) PromotePipeline(w http.ResponseWriter, r *http.Request) {
+	runID := strings.TrimSpace(chi.URLParam(r, "runId"))
+	if runID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "runId is required"})
+		return
+	}
+
+	result, err := h.pipeline.PromotePipeline(r.Context(), services.PromotePipelineParams{
+		SourceRunID: runID,
+	})
+	if err != nil {
+		switch {
+		case errors.Is(err, services.ErrRunNotFound):
+			writeError(w, http.StatusNotFound, err.Error(), nil)
+		case errors.Is(err, services.ErrRunNotCompleted):
+			writeError(w, http.StatusConflict, err.Error(), nil)
+		case errors.Is(err, services.ErrCannotPromotePromote):
+			writeError(w, http.StatusBadRequest, err.Error(), nil)
+		default:
+			writeError(w, http.StatusInternalServerError, "Failed to promote pipeline", err)
+		}
+		return
+	}
+	writeJSON(w, http.StatusOK, result)
+}
+
+// GetMergeQueueState handles GET /api/v1/projects/{id}/merge-queue
+func (h *Handlers) GetMergeQueueState(w http.ResponseWriter, r *http.Request) {
+	projectID := strings.TrimSpace(chi.URLParam(r, "id"))
+	if projectID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "projectId is required"})
+		return
+	}
+
+	state, err := h.pipeline.GetMergeQueueState(r.Context(), projectID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to get merge queue state", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, state)
 }

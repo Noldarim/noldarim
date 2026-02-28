@@ -124,6 +124,26 @@ func (c *Client) StartWorkflow(ctx context.Context, workflowID string, workflow 
 	return we, nil
 }
 
+// SignalWithStartWorkflow atomically signals a workflow and starts it if it
+// doesn't exist (or has completed/failed). This avoids the race where a
+// workflow terminates between a status check and a subsequent signal.
+func (c *Client) SignalWithStartWorkflow(ctx context.Context, workflowID, signalName string, signalArg interface{}, workflowFunc interface{}, workflowArgs ...interface{}) (client.WorkflowRun, error) {
+	options := client.StartWorkflowOptions{
+		ID:                       workflowID,
+		TaskQueue:                c.taskQueue,
+		WorkflowIDReusePolicy:    enums.WORKFLOW_ID_REUSE_POLICY_ALLOW_DUPLICATE,
+		WorkflowIDConflictPolicy: enums.WORKFLOW_ID_CONFLICT_POLICY_USE_EXISTING,
+	}
+
+	we, err := c.temporalClient.SignalWithStartWorkflow(ctx, workflowID, signalName, signalArg, options, workflowFunc, workflowArgs...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to signal-with-start workflow: %w", err)
+	}
+
+	getTemporalLog().Info().Msgf("SignalWithStart workflow %s (signal: %s)", workflowID, signalName)
+	return we, nil
+}
+
 // SignalWorkflow sends a signal to a running workflow
 func (c *Client) SignalWorkflow(ctx context.Context, workflowID, signalName string, arg interface{}) error {
 	err := c.temporalClient.SignalWorkflow(ctx, workflowID, "", signalName, arg)
@@ -135,19 +155,16 @@ func (c *Client) SignalWorkflow(ctx context.Context, workflowID, signalName stri
 	return nil
 }
 
-// QueryWorkflow queries a running workflow
-func (c *Client) QueryWorkflow(ctx context.Context, workflowID, queryType string, args ...interface{}) (interface{}, error) {
+// QueryWorkflow queries a running workflow and decodes the result into valuePtr.
+func (c *Client) QueryWorkflow(ctx context.Context, workflowID, queryType string, valuePtr interface{}, args ...interface{}) error {
 	resp, err := c.temporalClient.QueryWorkflow(ctx, workflowID, "", queryType, args...)
 	if err != nil {
-		return nil, fmt.Errorf("failed to query workflow: %w", err)
+		return fmt.Errorf("failed to query workflow: %w", err)
 	}
-
-	var result interface{}
-	if err := resp.Get(&result); err != nil {
-		return nil, fmt.Errorf("failed to get query result: %w", err)
+	if err := resp.Get(valuePtr); err != nil {
+		return fmt.Errorf("failed to decode query result: %w", err)
 	}
-
-	return result, nil
+	return nil
 }
 
 // MapWorkflowExecutionStatus maps Temporal's WorkflowExecutionStatus to our WorkflowStatus type.

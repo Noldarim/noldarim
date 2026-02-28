@@ -31,10 +31,11 @@ func New(
 	gitMgr *services.GitServiceManager,
 	pipeline *services.PipelineService,
 	agentDefaults AgentDefaultsResponse,
+	defaultBranch string,
 ) *Server {
 	registry := NewClientRegistry()
 	broadcaster := NewEventBroadcaster(eventChan, registry)
-	handlers := NewHandlers(broadcaster, dataService, gitMgr, pipeline, agentDefaults)
+	handlers := NewHandlers(broadcaster, dataService, gitMgr, pipeline, agentDefaults, defaultBranch)
 
 	r := chi.NewRouter()
 
@@ -51,6 +52,7 @@ func New(
 		r.Get("/projects", handlers.GetProjects)
 		r.Post("/projects", handlers.CreateProject)
 		r.Get("/agent/defaults", handlers.GetAgentDefaults)
+		r.Get("/config", handlers.GetConfig)
 
 		// Project sub-resources
 		r.Route("/projects/{id}", func(r chi.Router) {
@@ -59,6 +61,7 @@ func New(
 			r.Get("/commits", handlers.GetCommits)
 			r.Get("/pipelines", handlers.GetPipelineRuns)
 			r.Post("/pipelines", handlers.StartPipeline)
+			r.Get("/merge-queue", handlers.GetMergeQueueState)
 
 			// Task sub-resources
 			r.Post("/tasks/{taskId}/toggle", handlers.ToggleTask)
@@ -70,6 +73,7 @@ func New(
 		r.Get("/pipelines/{runId}", handlers.GetPipelineRun)
 		r.Get("/pipelines/{runId}/activity", handlers.GetPipelineRunAIActivity)
 		r.Post("/pipelines/{runId}/cancel", handlers.CancelPipeline)
+		r.Post("/pipelines/{runId}/promote", handlers.PromotePipeline)
 	})
 
 	// WebSocket

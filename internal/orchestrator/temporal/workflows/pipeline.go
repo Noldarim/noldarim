@@ -164,6 +164,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 		TaskQueue:             runTaskQueue,
 		OrchestratorTaskQueue: input.OrchestratorTaskQueue,
 		ParentWorkflowID:      workflow.GetInfo(ctx).WorkflowExecution.ID,
+		AutoPromote:           input.AutoPromote,
 	}
 
 	var setupOutput types.PipelineSetupOutput
@@ -568,6 +569,31 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 			Name:      input.Name,
 			Run:       finalRun,
 		}).Get(ctx, nil)
+
+	// Auto-promote: atomically signal+start the merge queue to promote this run
+	if input.AutoPromote {
+		signalInput := types.EnsureMergeQueueAndSignalInput{
+			ProjectID:             input.ProjectID,
+			RepositoryPath:        input.RepositoryPath,
+			MainBranch:            input.MainBranch,
+			ClaudeConfigPath:      input.ClaudeConfigPath,
+			WorkspaceDir:          input.WorkspaceDir,
+			OrchestratorTaskQueue: input.OrchestratorTaskQueue,
+			SignalName:            PromoteSignal,
+			Item: types.MergeQueueItem{
+				RunID:               input.RunID,
+				SourceBranchName:    branchName,
+				SourceHeadCommitSHA: currentCommit,
+				QueuedAt:            workflow.Now(ctx),
+			},
+		}
+		signalErr := workflow.ExecuteActivity(orchestratorCtx, "EnsureMergeQueueAndSignalActivity", signalInput).Get(ctx, nil)
+		if signalErr != nil {
+			logger.Error("Failed to signal merge queue for auto-promote", "error", signalErr)
+		} else {
+			logger.Info("Auto-promote signal sent to merge queue", "projectID", input.ProjectID)
+		}
+	}
 
 	output.Success = true
 	output.Duration = workflow.Now(ctx).Sub(startTime)

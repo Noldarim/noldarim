@@ -83,6 +83,7 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		dataService,
 		containerService,
 		eventChan,
+		temporalClient,
 	)
 
 	if err := temporalWorker.Start(context.Background()); err != nil {

@@ -25,6 +25,14 @@ func (m *MockTemporalClient) StartWorkflow(ctx context.Context, workflowID strin
 	return callArgs.Get(0).(client.WorkflowRun), callArgs.Error(1)
 }
 
+func (m *MockTemporalClient) SignalWithStartWorkflow(ctx context.Context, workflowID, signalName string, signalArg interface{}, workflowFunc interface{}, workflowArgs ...interface{}) (client.WorkflowRun, error) {
+	callArgs := m.Called(ctx, workflowID, signalName, signalArg, workflowFunc, workflowArgs)
+	if callArgs.Get(0) == nil {
+		return nil, callArgs.Error(1)
+	}
+	return callArgs.Get(0).(client.WorkflowRun), callArgs.Error(1)
+}
+
 func (m *MockTemporalClient) GetWorkflowStatus(ctx context.Context, workflowID string) (temporal.WorkflowStatus, error) {
 	args := m.Called(ctx, workflowID)
 	return args.Get(0).(temporal.WorkflowStatus), args.Error(1)
@@ -35,9 +43,9 @@ func (m *MockTemporalClient) SignalWorkflow(ctx context.Context, workflowID, sig
 	return args.Error(0)
 }
 
-func (m *MockTemporalClient) QueryWorkflow(ctx context.Context, workflowID, queryType string, args ...interface{}) (interface{}, error) {
-	callArgs := m.Called(ctx, workflowID, queryType, args)
-	return callArgs.Get(0), callArgs.Error(1)
+func (m *MockTemporalClient) QueryWorkflow(ctx context.Context, workflowID, queryType string, valuePtr interface{}, args ...interface{}) error {
+	callArgs := m.Called(ctx, workflowID, queryType, valuePtr, args)
+	return callArgs.Error(0)
 }
 
 func (m *MockTemporalClient) CancelWorkflow(ctx context.Context, workflowID string) error {

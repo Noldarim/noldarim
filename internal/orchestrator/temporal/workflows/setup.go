@@ -139,6 +139,8 @@ func SetupWorkflow(ctx workflow.Context, input types.PipelineSetupInput) (*types
 		ProjectID:          input.ProjectID,
 		Name:               input.Name,
 		Status:             models.PipelineRunStatusRunning,
+		RunType:            models.PipelineRunTypeStandard,
+		AutoPromote:        input.AutoPromote,
 		ParentRunID:        input.ForkFromRunID,
 		ForkAfterStepID:    input.ForkAfterStepID,
 		StartCommitSHA:     startCommit,

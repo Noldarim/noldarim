@@ -154,6 +154,7 @@ func main() {
 		dataService,
 		containerService,
 		nil, // No event channel needed for this dev tool
+		orchestratorClient,
 	)
 
 	// Start the orchestrator worker in background

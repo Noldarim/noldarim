@@ -70,6 +70,7 @@ func main() {
 			FlagFormat:  cfg.Agent.FlagFormat,
 			ToolOptions: cfg.Agent.ToolOptions,
 		},
+		cfg.Git.DefaultBranch,
 	)
 
 	serverErrChan := make(chan error, 1)

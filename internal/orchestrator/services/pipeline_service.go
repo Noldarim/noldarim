@@ -7,6 +7,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"path/filepath"
 	"sync"
@@ -25,6 +26,11 @@ import (
 var (
 	pipelineLog     *zerolog.Logger
 	pipelineLogOnce sync.Once
+
+	// Sentinel errors for promote validation
+	ErrRunNotFound          = errors.New("source run not found")
+	ErrRunNotCompleted      = errors.New("source run is not completed")
+	ErrCannotPromotePromote = errors.New("cannot promote a promote run")
 )
 
 func getPipelineLog() *zerolog.Logger {
@@ -94,6 +100,7 @@ type StartPipelineParams struct {
 	ForkFromRunID   string
 	ForkAfterStepID string
 	NoAutoFork      bool
+	AutoPromote     bool
 }
 
 // --- Public methods ---
@@ -180,7 +187,7 @@ func (ps *PipelineService) CreateTask(ctx context.Context, params CreateTaskPara
 		return result, nil
 	}
 
-	input := ps.buildWorkflowInput(runID, params.ProjectID, params.Title, steps, repoPath, baseCommitSHA, "", "")
+	input := ps.buildWorkflowInput(runID, params.ProjectID, params.Title, steps, repoPath, baseCommitSHA, "", "", false)
 
 	if _, err := ps.temporal.StartWorkflow(ctx, workflowID, workflows.PipelineWorkflowName, input); err != nil {
 		return nil, fmt.Errorf("failed to start pipeline workflow: %w", err)
@@ -227,7 +234,7 @@ func (ps *PipelineService) StartPipeline(ctx context.Context, params StartPipeli
 		return result, nil
 	}
 
-	input := ps.buildWorkflowInput(runID, params.ProjectID, params.Name, modelSteps, repoPath, baseCommitSHA, forkFromRunID, forkAfterStepID)
+	input := ps.buildWorkflowInput(runID, params.ProjectID, params.Name, modelSteps, repoPath, baseCommitSHA, forkFromRunID, forkAfterStepID, params.AutoPromote)
 
 	if _, err := ps.temporal.StartWorkflow(ctx, workflowID, workflows.PipelineWorkflowName, input); err != nil {
 		return nil, fmt.Errorf("failed to start pipeline workflow: %w", err)
@@ -236,6 +243,7 @@ func (ps *PipelineService) StartPipeline(ctx context.Context, params StartPipeli
 	getPipelineLog().Info().
 		Str("project_id", params.ProjectID).Str("run_id", runID).Str("workflow_id", workflowID).
 		Str("fork_from", forkFromRunID).Str("fork_after", forkAfterStepID).Int("skipped_steps", skippedSteps).
+		Bool("auto_promote", params.AutoPromote).
 		Msg("Started pipeline workflow")
 
 	return &PipelineRunResult{
@@ -280,6 +288,21 @@ func (ps *PipelineService) CancelPipeline(_ context.Context, runID, reason strin
 }
 
 // --- Private helpers ---
+
+// truncateID safely truncates an ID string to at most n characters.
+func truncateID(id string, n int) string {
+	if len(id) <= n {
+		return id
+	}
+	return id[:n]
+}
+
+func (ps *PipelineService) mainBranch() string {
+	if b := ps.config.Git.DefaultBranch; b != "" {
+		return b
+	}
+	return "main"
+}
 
 func validateProjectInputs(name, description, repoPath string) error {
 	if name == "" {
@@ -394,6 +417,7 @@ func (ps *PipelineService) buildWorkflowInput(
 	runID, projectID, name string,
 	steps []models.StepDefinition,
 	repoPath, baseCommitSHA, forkFromRunID, forkAfterStepID string,
+	autoPromote bool,
 ) types.PipelineWorkflowInput {
 	promptPrefix := ""
 	promptSuffix := ""
@@ -402,7 +426,7 @@ func (ps *PipelineService) buildWorkflowInput(
 		promptSuffix = ps.config.Pipeline.PromptSuffix
 	}
 
-	return types.PipelineWorkflowInput{
+	input := types.PipelineWorkflowInput{
 		RunID:                 runID,
 		ProjectID:             projectID,
 		Name:                  name,
@@ -416,7 +440,12 @@ func (ps *PipelineService) buildWorkflowInput(
 		ClaudeConfigPath:      ps.config.Claude.ClaudeJSONHostPath,
 		WorkspaceDir:          ps.config.Container.WorkspaceDir,
 		OrchestratorTaskQueue: ps.config.Temporal.TaskQueue,
+		AutoPromote:           autoPromote,
 	}
+	if autoPromote {
+		input.MainBranch = ps.mainBranch()
+	}
+	return input
 }
 
 func convertProtocolSteps(steps []protocol.StepInput) []models.StepDefinition {
@@ -543,7 +572,7 @@ func (ps *PipelineService) detectAutoFork(
 	result.ForkFromRunID = bestRun.ID
 	result.ForkAfterStepID = forkAfterStepID
 	result.SkippedSteps = bestMatchCount
-	result.Reason = fmt.Sprintf("Found %d matching steps from run %s", bestMatchCount, bestRun.ID[:8])
+	result.Reason = fmt.Sprintf("Found %d matching steps from run %s", bestMatchCount, truncateID(bestRun.ID, 8))
 
 	return result, nil
 }
@@ -591,6 +620,83 @@ func ComputeRunID(baseCommitSHA, workflowVersion string, steps []models.StepDefi
 		h.Write([]byte(models.ComputeStepDefinitionHash(step)))
 	}
 	return hex.EncodeToString(h.Sum(nil))[:16]
+}
+
+// --- Promote / Merge Queue methods ---
+
+// PromotePipelineParams groups input for PromotePipeline.
+type PromotePipelineParams struct {
+	SourceRunID string
+}
+
+// PromotePipeline queues a completed pipeline run for merge into the project's main branch.
+func (ps *PipelineService) PromotePipeline(ctx context.Context, params PromotePipelineParams) (*PipelineRunResult, error) {
+	// Validate: source run exists and is completed
+	run, err := ps.data.GetPipelineRun(ctx, params.SourceRunID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get source run: %w", err)
+	}
+	if run == nil {
+		return nil, fmt.Errorf("%w: %s", ErrRunNotFound, params.SourceRunID)
+	}
+	if run.Status != models.PipelineRunStatusCompleted {
+		return nil, fmt.Errorf("%w (status=%s)", ErrRunNotCompleted, run.Status.String())
+	}
+	if run.RunType == models.PipelineRunTypePromote {
+		return nil, fmt.Errorf("%w: %s", ErrCannotPromotePromote, params.SourceRunID)
+	}
+
+	// Get repository path
+	repoPath, err := ps.data.GetProjectRepositoryPath(ctx, run.ProjectID)
+	if err != nil {
+		return nil, fmt.Errorf("could not get repository path: %w", err)
+	}
+
+	// Atomically signal the merge queue and start it if it doesn't exist
+	mainBranch := ps.mainBranch()
+	mergeQueueID := types.MergeQueueWorkflowID(run.ProjectID)
+	item := types.MergeQueueItem{
+		RunID:               params.SourceRunID,
+		SourceBranchName:    run.BranchName,
+		SourceHeadCommitSHA: run.HeadCommitSHA,
+		QueuedAt:            time.Now(),
+	}
+	mqInput := types.MergeQueueWorkflowInput{
+		ProjectID:             run.ProjectID,
+		RepositoryPath:        repoPath,
+		MainBranch:            mainBranch,
+		ClaudeConfigPath:      ps.config.Claude.ClaudeJSONHostPath,
+		WorkspaceDir:          ps.config.Container.WorkspaceDir,
+		OrchestratorTaskQueue: ps.config.Temporal.TaskQueue,
+	}
+	if _, err := ps.temporal.SignalWithStartWorkflow(ctx, mergeQueueID, workflows.PromoteSignal, item, workflows.MergeQueueWorkflowName, mqInput); err != nil {
+		return nil, fmt.Errorf("failed to signal merge queue: %w", err)
+	}
+
+	getPipelineLog().Info().
+		Str("project_id", run.ProjectID).
+		Str("source_run_id", params.SourceRunID).
+		Str("merge_queue_id", mergeQueueID).
+		Msg("Queued promote signal")
+
+	return &PipelineRunResult{
+		RunID:     params.SourceRunID,
+		ProjectID: run.ProjectID,
+		Name:      fmt.Sprintf("Promote %s", truncateID(params.SourceRunID, 8)),
+		Status:    "queued",
+	}, nil
+}
+
+// GetMergeQueueState queries the merge queue workflow for its current state.
+func (ps *PipelineService) GetMergeQueueState(ctx context.Context, projectID string) (*types.MergeQueueState, error) {
+	mergeQueueID := types.MergeQueueWorkflowID(projectID)
+
+	var state types.MergeQueueState
+	if err := ps.temporal.QueryWorkflow(ctx, mergeQueueID, workflows.MergeQueueStateQuery, &state); err != nil {
+		return nil, fmt.Errorf("failed to query merge queue: %w", err)
+	}
+
+	return &state, nil
 }
 
 // shouldApplyPromptComposition determines if prompt prefix/suffix should be applied.

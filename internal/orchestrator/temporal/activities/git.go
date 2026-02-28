@@ -152,6 +152,15 @@ func (a *GitActivities) RemoveWorktreeActivity(ctx context.Context, input types.
 
 	// Use write lock for removal
 	err = handle.WithWriteLock(ctx, func(gs *services.GitService) error {
+		// Best-effort: abort any in-progress merge in the worktree.
+		// This prevents "worktree is dirty" errors when the promote workflow
+		// failed mid-merge and left conflict markers in the working tree.
+		if gs.WorktreeExists(input.WorktreePath) {
+			if abortErr := gs.AbortMerge(ctx, input.WorktreePath); abortErr != nil {
+				logger.Debug("merge --abort not needed or failed (expected if no merge in progress)", "error", abortErr)
+			}
+		}
+
 		// Extract task ID from worktree path
 		taskID := services.ExtractTaskIDFromPath(input.WorktreePath)
 		if taskID == "" {
@@ -344,6 +353,142 @@ func (a *GitActivities) GitCommitActivity(ctx context.Context, input types.GitCo
 		Error:     "",
 		CommitSHA: commitSHA,
 	}, nil
+}
+
+// CheckFastForwardActivity checks if a fast-forward merge is possible.
+func (a *GitActivities) CheckFastForwardActivity(ctx context.Context, input types.CheckFastForwardInput) (*types.CheckFastForwardOutput, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Checking fast-forward feasibility", "mainBranch", input.MainBranch, "taskBranch", input.TaskBranch)
+
+	activity.RecordHeartbeat(ctx, "Checking fast-forward")
+
+	handle, err := a.manager.GetService(input.RepoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git service handle: %w", err)
+	}
+	defer handle.Release()
+
+	output := &types.CheckFastForwardOutput{}
+
+	err = handle.WithReadLock(ctx, func(gs *services.GitService) error {
+		mainSHA, err := gs.GetBranchHeadSHA(ctx, input.RepoPath, input.MainBranch)
+		if err != nil {
+			return fmt.Errorf("failed to get main branch head: %w", err)
+		}
+		output.MainHeadSHA = mainSHA
+
+		taskSHA, err := gs.GetBranchHeadSHA(ctx, input.RepoPath, input.TaskBranch)
+		if err != nil {
+			return fmt.Errorf("failed to get task branch head: %w", err)
+		}
+		output.TaskHeadSHA = taskSHA
+
+		isFF, err := gs.IsFastForwardPossible(ctx, input.RepoPath, input.MainBranch, input.TaskBranch)
+		if err != nil {
+			return fmt.Errorf("failed to check fast-forward: %w", err)
+		}
+		output.IsFF = isFF
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Fast-forward check complete", "isFF", output.IsFF, "mainHead", output.MainHeadSHA, "taskHead", output.TaskHeadSHA)
+	return output, nil
+}
+
+// FastForwardBranchActivity advances a branch ref to a target SHA.
+func (a *GitActivities) FastForwardBranchActivity(ctx context.Context, input types.FastForwardBranchInput) error {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Fast-forwarding branch", "branch", input.Branch, "target", input.TargetSHA)
+
+	activity.RecordHeartbeat(ctx, "Fast-forwarding branch")
+
+	handle, err := a.manager.GetService(input.RepoPath)
+	if err != nil {
+		return fmt.Errorf("failed to get git service handle: %w", err)
+	}
+	defer handle.Release()
+
+	err = handle.WithWriteLock(ctx, func(gs *services.GitService) error {
+		return gs.FastForwardBranch(ctx, input.RepoPath, input.Branch, input.TargetSHA, input.ExpectedOldSHA)
+	})
+
+	if err != nil {
+		logger.Error("Failed to fast-forward branch", "error", err)
+		return err
+	}
+
+	logger.Info("Branch fast-forwarded successfully")
+	return nil
+}
+
+// MergeInWorktreeActivity performs a git merge in a worktree.
+func (a *GitActivities) MergeInWorktreeActivity(ctx context.Context, input types.MergeInWorktreeInput) (*types.MergeInWorktreeOutput, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Merging in worktree", "worktree", input.WorktreePath, "branch", input.BranchToMerge)
+
+	activity.RecordHeartbeat(ctx, "Merging in worktree")
+
+	handle, err := a.manager.GetService(input.WorktreePath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git service handle: %w", err)
+	}
+	defer handle.Release()
+
+	output := &types.MergeInWorktreeOutput{}
+
+	err = handle.WithWriteLock(ctx, func(gs *services.GitService) error {
+		sha, hasConflicts, mergeErr := gs.MergeInWorktree(ctx, input.WorktreePath, input.BranchToMerge)
+		if mergeErr != nil {
+			return mergeErr
+		}
+		output.CommitSHA = sha
+		output.HasConflicts = hasConflicts
+		return nil
+	})
+
+	if err != nil {
+		logger.Error("Merge failed", "error", err)
+		return nil, err
+	}
+
+	logger.Info("Merge activity complete", "commitSHA", output.CommitSHA, "hasConflicts", output.HasConflicts)
+	return output, nil
+}
+
+// GetBranchHeadActivity gets the HEAD commit SHA of a branch.
+func (a *GitActivities) GetBranchHeadActivity(ctx context.Context, input types.GetBranchHeadInput) (*types.GetBranchHeadOutput, error) {
+	logger := activity.GetLogger(ctx)
+	logger.Info("Getting branch head", "branch", input.Branch)
+
+	activity.RecordHeartbeat(ctx, "Getting branch head")
+
+	handle, err := a.manager.GetService(input.RepoPath)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get git service handle: %w", err)
+	}
+	defer handle.Release()
+
+	output := &types.GetBranchHeadOutput{}
+
+	err = handle.WithReadLock(ctx, func(gs *services.GitService) error {
+		sha, err := gs.GetBranchHeadSHA(ctx, input.RepoPath, input.Branch)
+		if err != nil {
+			return err
+		}
+		output.SHA = sha
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
+	}
+
+	logger.Info("Got branch head", "sha", output.SHA)
+	return output, nil
 }
 
 // CaptureGitDiffActivity captures git diff information from a repository

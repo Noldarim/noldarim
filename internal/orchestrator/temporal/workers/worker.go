@@ -49,6 +49,7 @@ type Worker struct {
 	taskFileActivities     *activities.TaskFileActivities
 	pipelineDataActivities *activities.PipelineDataActivities // Pipeline workflow activities
 	stepDocActivities      *activities.StepDocumentationActivities
+	mergeQueueActivities   *activities.MergeQueueActivities
 	config                 *config.AppConfig
 	mu                     sync.Mutex
 	stopped                bool
@@ -62,6 +63,7 @@ func NewWorker(
 	dataService *services.DataService,
 	containerService *service.Service,
 	eventChan chan<- protocol.Event,
+	mergeQueueSignaler activities.MergeQueueSignaler,
 ) *Worker {
 	// Create activity instances
 	gitActivities := activities.NewGitActivities(gitServiceManager)
@@ -73,6 +75,7 @@ func NewWorker(
 	taskFileActivities := activities.NewTaskFileActivities(cfg)
 	pipelineDataActivities := activities.NewPipelineDataActivities(dataService)
 	stepDocActivities := activities.NewStepDocumentationActivities()
+	mergeQueueActivities := activities.NewMergeQueueActivities(mergeQueueSignaler)
 
 	return &Worker{
 		temporalClient:         temporalClient,
@@ -86,6 +89,7 @@ func NewWorker(
 		taskFileActivities:     taskFileActivities,
 		pipelineDataActivities: pipelineDataActivities,
 		stepDocActivities:      stepDocActivities,
+		mergeQueueActivities:   mergeQueueActivities,
 		config:                 cfg,
 	}
 }
@@ -128,6 +132,8 @@ func (w *Worker) Start(ctx context.Context) error {
 	w.worker.RegisterWorkflow(workflows.PipelineWorkflow)
 	w.worker.RegisterWorkflow(workflows.SetupWorkflow)
 	w.worker.RegisterWorkflow(workflows.ProcessingStepWorkflow)
+	w.worker.RegisterWorkflow(workflows.PromoteWorkflow)
+	w.worker.RegisterWorkflow(workflows.MergeQueueWorkflow)
 
 	// Register activities
 	w.registerActivities()
@@ -155,6 +161,10 @@ func (w *Worker) registerActivities() {
 	w.worker.RegisterActivity(w.gitActivities.GetWorktreeStatusActivity)
 	w.worker.RegisterActivity(w.gitActivities.GitCommitActivity)
 	w.worker.RegisterActivity(w.gitActivities.CaptureGitDiffActivity)
+	w.worker.RegisterActivity(w.gitActivities.CheckFastForwardActivity)
+	w.worker.RegisterActivity(w.gitActivities.FastForwardBranchActivity)
+	w.worker.RegisterActivity(w.gitActivities.MergeInWorktreeActivity)
+	w.worker.RegisterActivity(w.gitActivities.GetBranchHeadActivity)
 
 	// Register Data activities
 	w.worker.RegisterActivity(w.dataActivities.CreateTaskActivity)
@@ -214,6 +224,9 @@ func (w *Worker) registerActivities() {
 
 	// Register Step Documentation activities
 	w.worker.RegisterActivity(w.stepDocActivities.GenerateStepDocumentationActivity)
+
+	// Register Merge Queue activities
+	w.worker.RegisterActivity(w.mergeQueueActivities.EnsureMergeQueueAndSignalActivity)
 
 	getLog().Info().Msg("All activities registered with worker")
 }
@@ -285,6 +298,7 @@ func (w *Worker) GetRegisteredActivities() []string {
 		"GetLatestPipelineRunActivity",
 		"GetTokenTotalsActivity",
 		"GenerateStepDocumentationActivity",
+		"EnsureMergeQueueAndSignalActivity",
 	}
 }
 
