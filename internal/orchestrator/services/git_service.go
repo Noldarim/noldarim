@@ -5,6 +5,7 @@ package services
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"os/exec"
@@ -38,6 +39,9 @@ type GitService struct {
 	config  *config.AppConfig
 }
 
+// ErrBranchNotFound indicates the requested branch does not exist.
+var ErrBranchNotFound = fmt.Errorf("branch not found")
+
 // Security constants for validation
 const (
 	maxPathLength          = 4096
@@ -68,22 +72,25 @@ var (
 
 // Allowed git operations for security
 var allowedGitOperations = map[string]bool{
-	"init":      true,
-	"add":       true,
-	"commit":    true,
-	"checkout":  true,
-	"branch":    true,
-	"status":    true,
-	"rev-parse": true,
-	"diff":      true,
-	"log":       true,
-	"show-ref":  true,
-	"worktree":  true,
-	"stash":     true,
-	"reset":     true,
-	"clean":     true,
-	"remote":    true,
-	"config":    true,
+	"init":       true,
+	"add":        true,
+	"commit":     true,
+	"checkout":   true,
+	"branch":     true,
+	"status":     true,
+	"rev-parse":  true,
+	"diff":       true,
+	"log":        true,
+	"show-ref":   true,
+	"worktree":   true,
+	"stash":      true,
+	"reset":      true,
+	"clean":      true,
+	"remote":     true,
+	"config":     true,
+	"merge":      true,
+	"merge-base": true,
+	"update-ref": true,
 }
 
 // NewGitService creates a new git service with the provided repository path
@@ -905,10 +912,11 @@ func (gs *GitService) branchExists(ctx context.Context, repoPath, branchName str
 
 // GitCommit represents a git commit with its metadata
 type GitCommit struct {
-	Hash    string
-	Message string
-	Author  string
-	Parents []string
+	Hash      string
+	Message   string
+	Author    string
+	Parents   []string
+	Timestamp string // ISO 8601 commit date (optional, populated by some queries)
 }
 
 // GetCommitHistory retrieves the commit history for the repository
@@ -918,11 +926,11 @@ func (gs *GitService) GetCommitHistory(ctx context.Context, repoPath string, lim
 	}
 
 	// Build git log command with format to extract commit info
-	// Format: hash|message|author|parent_hashes
+	// Format: hash\x00message\x00author\x00parent_hashes (null-byte delimited to avoid corruption from | in commit messages)
 	// Use --topo-order to preserve branch topology for proper graph visualization
 	cmd, err := gs.buildSafeGitCommand(ctx, repoPath, "log",
 		fmt.Sprintf("--max-count=%d", limit),
-		"--format=%H|%s|%an|%P",
+		"--format=%H%x00%s%x00%an%x00%P",
 		"--all",
 		"--topo-order")
 	if err != nil {
@@ -947,7 +955,7 @@ func (gs *GitService) GetCommitHistory(ctx context.Context, repoPath string, lim
 			continue
 		}
 
-		parts := strings.Split(line, "|")
+		parts := strings.Split(line, "\x00")
 		if len(parts) < 4 {
 			continue // Skip malformed lines
 		}
@@ -959,6 +967,81 @@ func (gs *GitService) GetCommitHistory(ctx context.Context, repoPath string, lim
 		}
 
 		// Parse parent hashes (space-separated)
+		if parts[3] != "" {
+			commit.Parents = strings.Split(parts[3], " ")
+		} else {
+			commit.Parents = []string{}
+		}
+
+		commits = append(commits, commit)
+	}
+
+	return commits, nil
+}
+
+// GetBranchCommitHistory retrieves the commit history for a specific branch
+// following only first-parent commits (main line, ignoring merge parents).
+func (gs *GitService) GetBranchCommitHistory(ctx context.Context, repoPath string, branch string, limit int) ([]GitCommit, error) {
+	if limit <= 0 {
+		limit = 10
+	}
+
+	// Validate branch name for security
+	if err := validateBranchName(branch); err != nil {
+		return nil, fmt.Errorf("invalid branch name: %w", err)
+	}
+
+	// Check branch exists before running git log to return a clear error
+	validatedPath, err := gs.validateRepoPath(repoPath)
+	if err != nil {
+		return nil, fmt.Errorf("invalid repository path: %w", err)
+	}
+	exists, err := gs.branchExists(ctx, validatedPath, branch)
+	if err != nil {
+		return nil, fmt.Errorf("failed to check branch existence: %w", err)
+	}
+	if !exists {
+		return nil, fmt.Errorf("%w: %s", ErrBranchNotFound, branch)
+	}
+
+	// Format: hash\x00message\x00author\x00parent_hashes\x00ISO8601_date (null-byte delimited)
+	cmd, err := gs.buildSafeGitCommand(ctx, repoPath, "log",
+		branch,
+		"--first-parent",
+		fmt.Sprintf("--max-count=%d", limit),
+		"--format=%H%x00%s%x00%an%x00%P%x00%cI")
+	if err != nil {
+		return nil, fmt.Errorf("failed to build git command: %w", err)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		if strings.Contains(err.Error(), "does not have any commits") {
+			return []GitCommit{}, nil
+		}
+		return nil, fmt.Errorf("failed to get branch commit history: %w", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(output)), "\n")
+	commits := make([]GitCommit, 0, len(lines))
+
+	for _, line := range lines {
+		if line == "" {
+			continue
+		}
+
+		parts := strings.SplitN(line, "\x00", 5)
+		if len(parts) < 5 {
+			continue
+		}
+
+		commit := GitCommit{
+			Hash:      parts[0],
+			Message:   parts[1],
+			Author:    parts[2],
+			Timestamp: parts[4],
+		}
+
 		if parts[3] != "" {
 			commit.Parents = strings.Split(parts[3], " ")
 		} else {
@@ -1652,6 +1735,162 @@ func (gs *GitService) GetChangedFiles(ctx context.Context, repoPath string) ([]s
 	}
 
 	return result, nil
+}
+
+// IsFastForwardPossible checks if mainBranch HEAD is an ancestor of taskBranch HEAD,
+// meaning a fast-forward merge is possible (main hasn't diverged).
+func (gs *GitService) IsFastForwardPossible(ctx context.Context, repoPath, mainBranch, taskBranch string) (bool, error) {
+	getLog().Debug().Str("main", mainBranch).Str("task", taskBranch).Msg("Checking fast-forward feasibility")
+
+	validatedPath, err := gs.validateRepoPath(repoPath)
+	if err != nil {
+		return false, fmt.Errorf("invalid repository path: %w", err)
+	}
+	if err := validateBranchName(mainBranch); err != nil {
+		return false, fmt.Errorf("invalid main branch name: %w", err)
+	}
+	if err := validateBranchName(taskBranch); err != nil {
+		return false, fmt.Errorf("invalid task branch name: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd, err := gs.buildSafeGitCommand(ctx, validatedPath, "merge-base", "--is-ancestor", mainBranch, taskBranch)
+	if err != nil {
+		return false, fmt.Errorf("failed to build git command: %w", err)
+	}
+
+	err = cmd.Run()
+	if err != nil {
+		var exitError *exec.ExitError
+		if errors.As(err, &exitError) {
+			if exitError.ExitCode() == 1 {
+				// Exit 1 means main is NOT an ancestor of task — not FF-able
+				return false, nil
+			}
+		}
+		return false, fmt.Errorf("failed to check fast-forward: %w", err)
+	}
+
+	// Exit 0 means main IS an ancestor of task — FF is possible
+	return true, nil
+}
+
+// FastForwardBranch advances a branch ref to point at targetSHA without checkout.
+// Uses git update-ref with compare-and-swap semantics: the update will only succeed
+// if the branch currently points at expectedOldSHA, preventing lost-update races.
+// If expectedOldSHA is empty, the update is unconditional (backwards-compatible).
+func (gs *GitService) FastForwardBranch(ctx context.Context, repoPath, branch, targetSHA, expectedOldSHA string) error {
+	getLog().Debug().Str("branch", branch).Str("target", targetSHA).Str("expectedOld", expectedOldSHA).Msg("Fast-forwarding branch")
+
+	validatedPath, err := gs.validateRepoPath(repoPath)
+	if err != nil {
+		return fmt.Errorf("invalid repository path: %w", err)
+	}
+	if err := validateBranchName(branch); err != nil {
+		return fmt.Errorf("invalid branch name: %w", err)
+	}
+	if err := validateCommitHash(targetSHA); err != nil {
+		return fmt.Errorf("invalid target SHA: %w", err)
+	}
+
+	ref := fmt.Sprintf("refs/heads/%s", branch)
+	if expectedOldSHA != "" {
+		if err := validateCommitHash(expectedOldSHA); err != nil {
+			return fmt.Errorf("invalid expected old SHA: %w", err)
+		}
+		if err := gs.runSafeGitCommand(ctx, validatedPath, "update-ref", ref, targetSHA, expectedOldSHA); err != nil {
+			return fmt.Errorf("failed to fast-forward branch (compare-and-swap): %w", err)
+		}
+	} else {
+		if err := gs.runSafeGitCommand(ctx, validatedPath, "update-ref", ref, targetSHA); err != nil {
+			return fmt.Errorf("failed to fast-forward branch: %w", err)
+		}
+	}
+
+	getLog().Info().Str("branch", branch).Str("target", targetSHA).Msg("Branch fast-forwarded")
+	return nil
+}
+
+// MergeInWorktree performs a git merge in the given worktree directory.
+// Returns the resulting commit SHA, whether there were conflicts, and any error.
+func (gs *GitService) MergeInWorktree(ctx context.Context, worktreePath, branchToMerge string) (commitSHA string, hasConflicts bool, err error) {
+	getLog().Debug().Str("worktree", worktreePath).Str("branch", branchToMerge).Msg("Merging in worktree")
+
+	validatedPath, err := gs.validateRepoPath(worktreePath)
+	if err != nil {
+		return "", false, fmt.Errorf("invalid worktree path: %w", err)
+	}
+	if err := validateBranchName(branchToMerge); err != nil {
+		return "", false, fmt.Errorf("invalid branch name: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 60*time.Second)
+	defer cancel()
+
+	cmd, err := gs.buildSafeGitCommand(ctx, validatedPath, "merge", "--no-edit", branchToMerge)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to build git command: %w", err)
+	}
+
+	output, mergeErr := cmd.CombinedOutput()
+	if mergeErr != nil {
+		var exitError *exec.ExitError
+		if errors.As(mergeErr, &exitError) && exitError.ExitCode() == 1 {
+			hasConflictMarker := strings.Contains(string(output), "CONFLICT")
+			if hasConflictMarker {
+				getLog().Info().
+					Str("worktree", validatedPath).
+					Msg("Merge has conflicts")
+				return "", true, nil
+			}
+			// Exit code 1 without CONFLICT marker — treat as generic error
+			return "", false, fmt.Errorf("merge failed (exit 1, no conflict marker): %s, output: %s", mergeErr, string(output))
+		}
+		return "", false, fmt.Errorf("merge failed: %s, output: %s", mergeErr, string(output))
+	}
+
+	// Merge succeeded — get the resulting commit SHA
+	sha, err := gs.getCurrentCommit(ctx, validatedPath)
+	if err != nil {
+		return "", false, fmt.Errorf("failed to get merge commit SHA: %w", err)
+	}
+
+	getLog().Info().Str("worktree", validatedPath).Str("commitSHA", sha).Msg("Merge completed successfully")
+	return sha, false, nil
+}
+
+// AbortMerge aborts a merge in progress in the given directory.
+// Returns an error if no merge is in progress (which callers can safely ignore).
+func (gs *GitService) AbortMerge(ctx context.Context, repoPath string) error {
+	return gs.runSafeGitCommand(ctx, repoPath, "merge", "--abort")
+}
+
+// GetBranchHeadSHA returns the HEAD commit SHA of a specific branch.
+func (gs *GitService) GetBranchHeadSHA(ctx context.Context, repoPath, branch string) (string, error) {
+	validatedPath, err := gs.validateRepoPath(repoPath)
+	if err != nil {
+		return "", fmt.Errorf("invalid repository path: %w", err)
+	}
+	if err := validateBranchName(branch); err != nil {
+		return "", fmt.Errorf("invalid branch name: %w", err)
+	}
+
+	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
+	defer cancel()
+
+	cmd, err := gs.buildSafeGitCommand(ctx, validatedPath, "rev-parse", branch)
+	if err != nil {
+		return "", fmt.Errorf("failed to build git command: %w", err)
+	}
+
+	output, err := cmd.Output()
+	if err != nil {
+		return "", fmt.Errorf("failed to get branch head: %w", err)
+	}
+
+	return strings.TrimSpace(string(output)), nil
 }
 
 // ParseDiffStat parses diff stat output to extract insertions and deletions
