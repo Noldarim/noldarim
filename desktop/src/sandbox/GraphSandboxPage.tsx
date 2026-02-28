@@ -168,6 +168,7 @@ export function GraphSandboxPage() {
     () => ({
       runs: state.runs,
       commits: state.commits,
+      mainCommits: [] as import("../lib/types").CommitInfo[],
       runDetails: state.runDetails,
     }),
     [state.runs, state.commits, state.runDetails]

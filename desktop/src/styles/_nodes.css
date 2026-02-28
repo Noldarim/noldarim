@@ -246,6 +246,26 @@
   white-space: nowrap;
 }
 
+/* ── Main lane commit ── */
+.commit-node--main-lane {
+  width: 140px;
+  border: 1px solid rgba(99, 102, 241, 0.45);
+  border-radius: var(--radius-pill);
+  background: linear-gradient(135deg, rgba(99, 102, 241, 0.08), rgba(99, 102, 241, 0.03));
+}
+
+.commit-node--main-lane:hover {
+  box-shadow: var(--shadow-sm), 0 0 12px rgba(99, 102, 241, 0.25);
+  border-color: rgba(99, 102, 241, 0.65);
+}
+
+.commit-node__sha--main-lane {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #818cf8;
+}
+
 /* ── Fork point ── */
 .commit-node--fork-point {
   border-color: var(--accent-gold);
@@ -634,3 +654,14 @@
 .pipeline-bg-node--cancelled { border-color: rgba(251, 146, 60, 0.15); }
 .pipeline-bg-node--pending { border-color: rgba(148, 163, 184, 0.15); }
 .pipeline-bg-node--skipped { border-color: rgba(251, 191, 36, 0.15); }
+
+/* ── Promote pipeline visual distinction ── */
+.pipeline-bg-node--promote {
+  border-color: rgba(168, 85, 247, 0.25);
+  background: rgba(88, 28, 135, 0.15);
+}
+
+.pipeline-bg-node--promote .pipeline-bg-node__name::before {
+  content: "\2295  ";
+  color: var(--accent-violet);
+}

@@ -9,6 +9,7 @@ export type PipelineBgNodeData = {
   runId: string;
   runName: string;
   status: GraphStatus;
+  runType?: "standard" | "promote";
   width: number;
   height: number;
 };
@@ -26,10 +27,11 @@ const STATUS_DOT_CLASS: Record<GraphStatus, string> = {
 
 export const PipelineBgNode = memo(function PipelineBgNode({ data }: NodeProps<PipelineBgNodeType>) {
   const statusMod = `pipeline-bg-node--${data.status}`;
+  const typeMod = data.runType === "promote" ? " pipeline-bg-node--promote" : "";
 
   return (
     <div
-      className={`pipeline-bg-node ${statusMod}`}
+      className={`pipeline-bg-node ${statusMod}${typeMod}`}
       style={{ width: data.width, height: data.height }}
     >
       <div className="pipeline-bg-node__header">

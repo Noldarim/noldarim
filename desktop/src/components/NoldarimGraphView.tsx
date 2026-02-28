@@ -4,7 +4,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Background, Controls, ReactFlow, applyNodeChanges, type Edge, type EdgeTypes, type Node, type NodeChange, type NodeTypes } from "@xyflow/react";
 
-import { getCommits, getPipelineRun, getPipelineRunActivity, listPipelineRuns } from "../lib/api";
+import { getCommits, getMainBranchCommits, getPipelineRun, getPipelineRunActivity, getServerConfig, listPipelineRuns } from "../lib/api";
 import { messageFromError } from "../lib/formatting";
 import type { GraphSelection } from "../lib/graph-selection";
 import { buildProjectGraph, type GraphEdgeData, type GraphInput } from "../lib/graph-layout";
@@ -390,6 +390,8 @@ export function NoldarimGraphView({
   const isLoading = useProjectGraphStore((s) => s.isLoading);
 
   const [commits, setCommits] = useState<CommitInfo[]>([]);
+  const [mainCommits, setMainCommits] = useState<CommitInfo[]>([]);
+  const [defaultBranch, setDefaultBranch] = useState<string>("main");
   const [commitsError, setCommitsError] = useState<string | null>(null);
   const [selection, setSelection] = useState<GraphSelection | null>(null);
   const [drawerOpen, setDrawerOpen] = useState(false);
@@ -398,6 +400,8 @@ export function NoldarimGraphView({
   const fetchRunsAbortRef = useRef<AbortController | null>(null);
   const fetchCommitsRequestIdRef = useRef(0);
   const fetchCommitsAbortRef = useRef<AbortController | null>(null);
+  const fetchMainCommitsRequestIdRef = useRef(0);
+  const fetchMainCommitsAbortRef = useRef<AbortController | null>(null);
   const loadingRunDetailsRef = useRef(new Set<string>());
   const pendingForkRunIdsRef = useRef(new Set<string>());
   const forkPollTimerRef = useRef<ReturnType<typeof setTimeout>>(undefined);
@@ -486,6 +490,7 @@ export function NoldarimGraphView({
     return {
       runs: mergedRuns,
       commits,
+      mainCommits,
       runDetails: mergedRunDetails,
       highlightedRunId,
       selectedStep: selection?.kind === "step-edge"
@@ -493,7 +498,7 @@ export function NoldarimGraphView({
         : null,
       selectedBaseCommitSha
     };
-  }, [mergedRuns, commits, mergedRunDetails, highlightedRunId, selection, selectedBaseCommitSha]);
+  }, [mergedRuns, commits, mainCommits, mergedRunDetails, highlightedRunId, selection, selectedBaseCommitSha]);
 
   const selectedRunId = selection?.runId ?? null;
 
@@ -565,6 +570,30 @@ export function NoldarimGraphView({
     }
   }, [serverUrl]);
 
+  const fetchMainBranchCommits = useCallback(async (pid: string, branch: string) => {
+    fetchMainCommitsAbortRef.current?.abort();
+    const controller = new AbortController();
+    fetchMainCommitsAbortRef.current = controller;
+    const requestId = ++fetchMainCommitsRequestIdRef.current;
+
+    try {
+      const result = await getMainBranchCommits(serverUrl, pid, branch, 10, { signal: controller.signal });
+      if (controller.signal.aborted || fetchMainCommitsRequestIdRef.current !== requestId) {
+        return;
+      }
+      setMainCommits(result.Commits ?? []);
+    } catch (err) {
+      if (controller.signal.aborted || fetchMainCommitsRequestIdRef.current !== requestId) {
+        return;
+      }
+      setMainCommits([]);
+    } finally {
+      if (fetchMainCommitsAbortRef.current === controller) {
+        fetchMainCommitsAbortRef.current = null;
+      }
+    }
+  }, [serverUrl]);
+
   const ensureRunDetails = useCallback(async (targetRunId: string) => {
     if (loadingRunDetailsRef.current.has(targetRunId)) return;
 
@@ -588,15 +617,29 @@ export function NoldarimGraphView({
     }
   }, [serverUrl]);
 
+  // Fetch server config once on mount to get the configured default branch
+  useEffect(() => {
+    let cancelled = false;
+    void getServerConfig(serverUrl).then((cfg) => {
+      if (!cancelled && cfg.default_branch) {
+        setDefaultBranch(cfg.default_branch);
+      }
+    }).catch(() => { /* keep fallback "main" */ });
+    return () => { cancelled = true; };
+  }, [serverUrl]);
+
   useEffect(() => {
     if (!projectId) {
       fetchRunsAbortRef.current?.abort();
       fetchCommitsAbortRef.current?.abort();
+      fetchMainCommitsAbortRef.current?.abort();
       fetchRunsAbortRef.current = null;
       fetchCommitsAbortRef.current = null;
+      fetchMainCommitsAbortRef.current = null;
       useProjectGraphStore.getState().reset();
       loadingRunDetailsRef.current.clear();
       setCommits([]);
+      setMainCommits([]);
       setCommitsError(null);
       setSelection(null);
       setDrawerOpen(false);
@@ -612,9 +655,15 @@ export function NoldarimGraphView({
   }, [projectId, runs.length, fetchProjectCommits]);
 
   useEffect(() => {
+    if (!projectId) return;
+    void fetchMainBranchCommits(projectId, defaultBranch);
+  }, [projectId, defaultBranch, runs.length, fetchMainBranchCommits]);
+
+  useEffect(() => {
     return () => {
       fetchRunsAbortRef.current?.abort();
       fetchCommitsAbortRef.current?.abort();
+      fetchMainCommitsAbortRef.current?.abort();
     };
   }, []);
 

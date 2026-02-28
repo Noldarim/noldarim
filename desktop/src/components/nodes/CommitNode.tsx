@@ -22,6 +22,7 @@ export type CommitNodeData = {
   label?: string;
   isGhost?: boolean;
   isStepCommit?: boolean;
+  isMainLane?: boolean;
   stepName?: string;
   stepStatus?: string;
   stepIndex?: number;
@@ -62,6 +63,27 @@ export const CommitNode = memo(function CommitNode({ data }: NodeProps<CommitNod
 
   const shortSha = data.sha === "unknown" ? "no commit" : data.sha.slice(0, 8);
   const m = data.stepMetrics;
+
+  // Main lane commit
+  if (data.isMainLane) {
+    return (
+      <div className="commit-node commit-node--main-lane" title={data.sha}>
+        <Handle id="main-top" type="target" position={Position.Top} />
+        <Handle id="main-bottom" type="source" position={Position.Bottom} />
+        <Handle id="run-source" type="source" position={Position.Right} />
+        <Handle id="run-target" type="target" position={Position.Left} />
+        {canFork && (
+          <button type="button" className="commit-node__run-btn" onClick={handleFork} title="Run pipeline from here">
+            <svg width="10" height="10" viewBox="0 0 10 10" fill="currentColor"><polygon points="1,0 10,5 1,10" /></svg>
+          </button>
+        )}
+        {data.commitMessage && <span className="commit-node__message">{data.commitMessage}</span>}
+        <span className={data.commitMessage ? "commit-node__sha commit-node__sha--secondary" : "commit-node__sha commit-node__sha--main-lane"}>
+          {shortSha}
+        </span>
+      </div>
+    );
+  }
 
   // Step commit: card layout with index badge, metrics grid, commit message
   // For in-progress steps (isGhost + isStepCommit), renders as step card with status styling

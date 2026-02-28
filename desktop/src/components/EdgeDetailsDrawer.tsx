@@ -1,9 +1,9 @@
 // Copyright (C) 2025-2026 Noldarim
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
-import { cancelPipeline, startPipeline } from "../lib/api";
+import { cancelPipeline, promotePipeline, startPipeline } from "../lib/api";
 import { durationToMs } from "../lib/duration";
 import { formatRunTimestamp, formatTokens, messageFromError } from "../lib/formatting";
 import type { GraphSelection } from "../lib/graph-selection";
@@ -133,6 +133,7 @@ export function EdgeDetailsDrawer({
   const [flagFormat, setFlagFormat] = useState("space");
   const [variablesJson, setVariablesJson] = useState("{}");
   const [toolOptionsJson, setToolOptionsJson] = useState("{}");
+  const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const selectedStepId = selection?.kind === "step-edge" ? selection.stepId : null;
 
@@ -201,6 +202,13 @@ export function EdgeDetailsDrawer({
     return () => window.removeEventListener("keydown", handleEscape);
   }, [isOpen, onClose]);
 
+  useEffect(() => {
+    return () => {
+      for (const id of pendingTimers.current) clearTimeout(id);
+      pendingTimers.current = [];
+    };
+  }, []);
+
   if (!isOpen || !selection || !run) {
     return null;
   }
@@ -216,6 +224,24 @@ export function EdgeDetailsDrawer({
       await cancelPipeline(serverUrl, currentRun.id, "Cancelled from edge drawer");
       setActionInfo("Cancellation requested.");
       onRefreshed();
+    } catch (err) {
+      setActionError(messageFromError(err));
+    } finally {
+      setIsSubmitting(false);
+    }
+  }
+
+  async function handlePromoteToMain() {
+    if (!currentRun.id) return;
+    setIsSubmitting(true);
+    setActionError(null);
+    setActionInfo(null);
+    try {
+      await promotePipeline(serverUrl, currentRun.id);
+      setActionInfo("Promote queued.");
+      onRefreshed();
+      pendingTimers.current.push(setTimeout(onRefreshed, 2_000));
+      pendingTimers.current.push(setTimeout(onRefreshed, 5_000));
     } catch (err) {
       setActionError(messageFromError(err));
     } finally {
@@ -249,8 +275,8 @@ export function EdgeDetailsDrawer({
       setActionInfo("Rerun started.");
       onRefreshed();
       // Temporal workflow needs time to persist the run record.
-      setTimeout(onRefreshed, 2_000);
-      setTimeout(onRefreshed, 5_000);
+      pendingTimers.current.push(setTimeout(onRefreshed, 2_000));
+      pendingTimers.current.push(setTimeout(onRefreshed, 5_000));
     } catch (err) {
       setActionError(messageFromError(err));
     } finally {
@@ -473,6 +499,13 @@ export function EdgeDetailsDrawer({
               Replay From Source Commit
             </button>
           )}
+          {currentSelection.kind === "run-edge" &&
+            currentRun.status === PipelineRunStatus.Completed &&
+            currentRun.run_type !== "promote" && (
+              <button type="button" onClick={handlePromoteToMain} disabled={isSubmitting} className="promote-button">
+                Promote to Main
+              </button>
+            )}
           {currentSelection.kind === "step-edge" && (
             <button type="button" onClick={handleForkFromStep} disabled={isSubmitting || !canEditConfig}>
               Fork Deterministically From Here

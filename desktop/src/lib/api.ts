@@ -8,10 +8,12 @@ import type {
   AIActivityBatchEvent,
   CancelPipelineResult,
   CommitsLoadedEvent,
+  MergeQueueState,
   PipelineRun,
   PipelineRunResult,
   PipelineRunsLoadedEvent,
   ProjectsLoadedEvent,
+  ServerConfig,
   StartPipelineRequest
 } from "./types";
 import {
@@ -19,10 +21,12 @@ import {
   AIActivityBatchEventSchema,
   CancelPipelineResultSchema,
   CommitsLoadedEventSchema,
+  MergeQueueStateSchema,
   PipelineRunResultSchema,
   PipelineRunSchema,
   PipelineRunsLoadedEventSchema,
-  ProjectsLoadedEventSchema
+  ProjectsLoadedEventSchema,
+  ServerConfigSchema
 } from "./schemas";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
@@ -61,6 +65,10 @@ export async function getProjects(baseUrl: string, init?: RequestInit): Promise<
   return requestJson(baseUrl, "/api/v1/projects", ProjectsLoadedEventSchema, init);
 }
 
+export async function getServerConfig(baseUrl: string, init?: RequestInit): Promise<ServerConfig> {
+  return requestJson(baseUrl, "/api/v1/config", ServerConfigSchema, init);
+}
+
 export async function getAgentDefaults(baseUrl: string, init?: RequestInit): Promise<AgentDefaults> {
   return requestJson(baseUrl, "/api/v1/agent/defaults", AgentDefaultsSchema, init);
 }
@@ -75,6 +83,22 @@ export async function getCommits(
   return requestJson(
     baseUrl,
     `/api/v1/projects/${encodeURIComponent(projectId)}/commits?limit=${clampedLimit}`,
+    CommitsLoadedEventSchema,
+    init
+  );
+}
+
+export async function getMainBranchCommits(
+  baseUrl: string,
+  projectId: string,
+  branch: string,
+  limit = 10,
+  init?: RequestInit
+): Promise<CommitsLoadedEvent> {
+  const clampedLimit = Math.max(1, Math.min(limit, 500));
+  return requestJson(
+    baseUrl,
+    `/api/v1/projects/${encodeURIComponent(projectId)}/commits?branch=${encodeURIComponent(branch)}&limit=${clampedLimit}`,
     CommitsLoadedEventSchema,
     init
   );
@@ -108,4 +132,14 @@ export async function cancelPipeline(baseUrl: string, runId: string, reason = "C
     method: "POST",
     body: JSON.stringify({ reason })
   });
+}
+
+export async function promotePipeline(baseUrl: string, runId: string): Promise<PipelineRunResult> {
+  return requestJson(baseUrl, `/api/v1/pipelines/${encodeURIComponent(runId)}/promote`, PipelineRunResultSchema, {
+    method: "POST"
+  });
+}
+
+export async function getMergeQueueState(baseUrl: string, projectId: string, init?: RequestInit): Promise<MergeQueueState> {
+  return requestJson(baseUrl, `/api/v1/projects/${encodeURIComponent(projectId)}/merge-queue`, MergeQueueStateSchema, init);
 }

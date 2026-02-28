@@ -30,6 +30,7 @@
   --accent-cyan-soft: rgba(62, 198, 224, 0.12);
   --accent-rose: #e05555;
   --accent-rose-soft: rgba(224, 85, 85, 0.12);
+  --accent-violet: #a855f7;
 
   /* ── Status ── */
   --status-running: #3ec6e0;

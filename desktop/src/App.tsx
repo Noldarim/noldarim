@@ -149,6 +149,7 @@ function AppMain({ isSandbox }: { isSandbox: boolean }) {
         const result = await startPipeline(serverUrl, selectedProjectId, {
           name: rendered.name,
           base_commit_sha: selectedBaseCommitSha || undefined,
+          auto_promote: draft.autoPromote || undefined,
           steps: rendered.steps.map((step) => ({
             step_id: step.id,
             name: step.name,

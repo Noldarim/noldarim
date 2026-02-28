@@ -75,6 +75,7 @@ export type GraphEdgeData = {
 export type GraphInput = {
   runs: PipelineRun[];
   commits: CommitInfo[];
+  mainCommits: CommitInfo[];
   runDetails: Record<string, { run: PipelineRun; activities: AIActivityRecord[] }>;
   highlightedRunId: string | null;
   selectedStep: { runId: string; stepId: string } | null;
@@ -1064,6 +1065,7 @@ function createPipelineBgNodes(expandedRunIds: string[], ctx: NodeLayoutCtx): No
         runId: expandedRun.id,
         runName: expandedRun.name,
         status,
+        runType: expandedRun.run_type,
         width: bgWidth,
         height: bgHeight,
       } satisfies PipelineBgNodeData,
@@ -1412,11 +1414,186 @@ export function createEdges(
 }
 
 // ---------------------------------------------------------------------------
+// Main lane — vertical column of main branch commits
+// ---------------------------------------------------------------------------
+
+const MAIN_LANE_X = 30;
+const MAIN_LANE_SPACING = 80; // vertical gap between unanchored main commits
+
+type MainLaneResult = {
+  mainNodes: Node[];
+  mainEdges: Edge[];
+};
+
+/**
+ * Build the main branch lane: a vertical column of main-branch commits on the
+ * left side of the graph.  Commits that are also fork-points for pipeline runs
+ * are anchored at the same Y as the pipeline row; the rest are interpolated.
+ */
+export function buildMainLane(
+  mainCommits: CommitInfo[],
+  runsSorted: PipelineRun[],
+  rows: RowAssignment,
+  commitBySha: Map<string, { id: string; x: number; y: number; depth: number; row: number }>,
+  selectedBaseCommitSha: string | null
+): MainLaneResult {
+  if (mainCommits.length === 0) return { mainNodes: [], mainEdges: [] };
+
+  const mainNodes: Node[] = [];
+  const mainEdges: Edge[] = [];
+
+  // Build a set of base commit SHAs used by pipeline runs for anchoring
+  const baseCommitShaToRow = new Map<string, number>();
+  for (const run of runsSorted) {
+    const baseSha = run.base_commit_sha || run.start_commit_sha;
+    if (baseSha) {
+      const pipelineRow = rows.pipelineRowMap.get(run.id);
+      const existingPlacement = commitBySha.get(baseSha);
+      if (existingPlacement) {
+        baseCommitShaToRow.set(baseSha, existingPlacement.row);
+      } else if (pipelineRow !== undefined) {
+        baseCommitShaToRow.set(baseSha, pipelineRow);
+      }
+    }
+  }
+
+  const { maxRow } = rows;
+
+  // Step 1: Compute Y for each main commit
+  type MainEntry = { sha: string; commit: CommitInfo; y: number; anchored: boolean };
+  const entries: MainEntry[] = mainCommits.map(c => ({
+    sha: c.Hash,
+    commit: c,
+    y: 0,
+    anchored: false
+  }));
+
+  // Anchor commits that match pipeline base commits
+  for (const entry of entries) {
+    if (baseCommitShaToRow.has(entry.sha)) {
+      const row = baseCommitShaToRow.get(entry.sha)!;
+      entry.y = (maxRow - row) * ROW_GAP;
+      entry.anchored = true;
+    }
+  }
+
+  // Find the Y range from existing anchored commits
+  const anchoredEntries = entries.filter(e => e.anchored);
+
+  if (anchoredEntries.length === 0) {
+    // No anchors — place all commits evenly starting from the top
+    for (let i = 0; i < entries.length; i++) {
+      entries[i].y = i * MAIN_LANE_SPACING;
+    }
+  } else {
+    // Interpolate unanchored commits between anchored ones
+    // mainCommits are newest-first from git log, so index 0 = newest
+    let lastAnchorIdx = -1;
+
+    for (let i = 0; i < entries.length; i++) {
+      if (entries[i].anchored) {
+        // Fill gap between lastAnchorIdx and i
+        if (lastAnchorIdx === -1 && i > 0) {
+          // Commits newer than the first anchor → place above
+          const anchorY = entries[i].y;
+          for (let j = i - 1; j >= 0; j--) {
+            entries[j].y = anchorY - (i - j) * MAIN_LANE_SPACING;
+          }
+        } else if (lastAnchorIdx >= 0 && i - lastAnchorIdx > 1) {
+          // Interpolate between two anchors
+          const startY = entries[lastAnchorIdx].y;
+          const endY = entries[i].y;
+          const gap = i - lastAnchorIdx;
+          for (let j = lastAnchorIdx + 1; j < i; j++) {
+            const t = (j - lastAnchorIdx) / gap;
+            entries[j].y = startY + t * (endY - startY);
+          }
+        }
+        lastAnchorIdx = i;
+      }
+    }
+
+    // Commits older than the last anchor → place below
+    if (lastAnchorIdx >= 0 && lastAnchorIdx < entries.length - 1) {
+      const anchorY = entries[lastAnchorIdx].y;
+      for (let j = lastAnchorIdx + 1; j < entries.length; j++) {
+        entries[j].y = anchorY + (j - lastAnchorIdx) * MAIN_LANE_SPACING;
+      }
+    }
+  }
+
+  // Step 2: Create main lane nodes
+  for (const entry of entries) {
+    const shortMsg = entry.commit.Message
+      ? (entry.commit.Message.length > 32
+        ? entry.commit.Message.slice(0, 32) + "..."
+        : entry.commit.Message)
+      : undefined;
+
+    mainNodes.push({
+      id: `main-${entry.sha}`,
+      type: "commit",
+      position: { x: MAIN_LANE_X, y: entry.y },
+      data: {
+        sha: entry.sha,
+        commitMessage: shortMsg,
+        isMainLane: true
+      } satisfies CommitNodeData,
+      selected: entry.sha === selectedBaseCommitSha,
+      draggable: false
+    });
+  }
+
+  // Step 3: Spine edges — vertical connections between consecutive main commits
+  for (let i = 0; i < entries.length - 1; i++) {
+    const from = entries[i];
+    const to = entries[i + 1];
+    mainEdges.push({
+      id: `main-spine-${from.sha}-${to.sha}`,
+      type: "default",
+      source: `main-${from.sha}`,
+      sourceHandle: "main-bottom",
+      target: `main-${to.sha}`,
+      targetHandle: "main-top",
+      style: { stroke: "#6366f1", strokeWidth: 2 },
+      data: { kind: "timeline", clickable: false, status: "completed" } satisfies GraphEdgeData,
+    });
+  }
+
+  // Step 4: Fork edges — connect main lane commits to pipeline start commits
+  for (const entry of entries) {
+    if (baseCommitShaToRow.has(entry.sha)) {
+      // Find the existing commit node for this SHA
+      const existingCommit = commitBySha.get(entry.sha);
+      if (existingCommit) {
+        mainEdges.push({
+          id: `main-fork-${entry.sha}`,
+          type: "default",
+          source: `main-${entry.sha}`,
+          sourceHandle: "run-source",
+          target: existingCommit.id,
+          targetHandle: "run-target",
+          style: {
+            stroke: "#6366f1",
+            strokeWidth: 1.4,
+            strokeDasharray: "6 4",
+            opacity: 0.5
+          },
+          data: { kind: "timeline", clickable: false, status: "completed" } satisfies GraphEdgeData,
+        });
+      }
+    }
+  }
+
+  return { mainNodes, mainEdges };
+}
+
+// ---------------------------------------------------------------------------
 // Main entry point — composes all the above
 // ---------------------------------------------------------------------------
 
 export function buildProjectGraph(input: GraphInput): { nodes: Node[]; edges: Edge[] } {
-  const { runs, commits, runDetails, highlightedRunId, selectedStep, selectedBaseCommitSha } = input;
+  const { runs, commits, mainCommits, runDetails, highlightedRunId, selectedStep, selectedBaseCommitSha } = input;
 
   const runsSorted = resolveRuns(runs, runDetails);
 
@@ -1492,6 +1669,19 @@ export function buildProjectGraph(input: GraphInput): { nodes: Node[]; edges: Ed
     startShas,
     hiddenHeadShas
   );
+
+  // Main branch lane — purely additive, no existing layout is modified
+  if (mainCommits.length > 0) {
+    const { mainNodes, mainEdges } = buildMainLane(
+      mainCommits,
+      runsSorted,
+      rows,
+      commitBySha,
+      selectedBaseCommitSha
+    );
+    nodes.push(...mainNodes);
+    edges.push(...mainEdges);
+  }
 
   return { nodes, edges };
 }

@@ -24,6 +24,10 @@ export const ProjectsLoadedEventSchema = z.object({
   Projects: z.record(z.string(), ProjectSchema).nullable().transform((v) => v ?? {})
 });
 
+export const ServerConfigSchema = z.object({
+  default_branch: z.string()
+});
+
 export const AgentDefaultsSchema = z.object({
   tool_name: z.string(),
   tool_version: z.string(),
@@ -70,6 +74,9 @@ export const PipelineRunSchema = z.object({
   project_id: z.string(),
   name: z.string(),
   status: PipelineRunStatusSchema,
+  run_type: z.enum(["standard", "promote"]).optional(),
+  auto_promote: z.boolean().optional(),
+  source_run_id: z.string().optional(),
   base_commit_sha: z.string().optional(),
   start_commit_sha: z.string().optional(),
   head_commit_sha: z.string().optional(),
@@ -95,7 +102,8 @@ export const CommitInfoSchema = z.object({
   Hash: z.string(),
   Message: z.string(),
   Author: z.string(),
-  Parents: z.array(z.string())
+  Parents: z.array(z.string()),
+  Timestamp: z.string().optional()
 });
 
 export const CommitsLoadedEventSchema = z.object({
@@ -152,4 +160,16 @@ export const CancelPipelineResultSchema = z.object({
   RunID: z.string(),
   Reason: z.string(),
   WorkflowStatus: z.string()
+});
+
+export const MergeQueueItemSchema = z.object({
+  run_id: z.string(),
+  source_branch_name: z.string(),
+  source_head_commit_sha: z.string(),
+  queued_at: z.string()
+});
+
+export const MergeQueueStateSchema = z.object({
+  items: z.array(MergeQueueItemSchema).nullable().transform((v) => v ?? []),
+  currently_processing: z.string().optional().default("")
 });

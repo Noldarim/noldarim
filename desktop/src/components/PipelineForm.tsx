@@ -23,6 +23,7 @@ type FormState = {
   name: string;
   variables: VariableRow[];
   steps: FormStep[];
+  autoPromote: boolean;
   error: string | null;
   isSubmitting: boolean;
 };
@@ -57,11 +58,12 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
     name: "Pipeline run",
     variables: [] as VariableRow[],
     steps: [{ id: "step-1", name: "Step 1", prompt: "Describe what this step should do", _key: formKey() }],
+    autoPromote: false,
     error: null,
     isSubmitting: false
   }));
 
-  const { selectedTemplateId, name, variables, steps, error, isSubmitting } = state;
+  const { selectedTemplateId, name, variables, steps, autoPromote, error, isSubmitting } = state;
 
   const templateLookup = useMemo(() => {
     const lookup = new Map<string, PipelineTemplate>();
@@ -183,7 +185,8 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
       await onStart({
         name: trimmedName,
         variables: variableMap,
-        steps: validatedSteps
+        steps: validatedSteps,
+        autoPromote
       });
     } catch (submitError) {
       const message = submitError instanceof Error ? submitError.message : "Failed to start pipeline";
@@ -320,6 +323,18 @@ export function PipelineForm({ templates, disabled, onStart }: Props) {
               </article>
             ))}
           </div>
+        </div>
+
+        <div className="field-group">
+          <label className="checkbox-label">
+            <input
+              type="checkbox"
+              checked={autoPromote}
+              onChange={(event) => dispatch({ autoPromote: event.target.checked })}
+              disabled={disabled || isSubmitting}
+            />
+            Auto-promote to main on completion
+          </label>
         </div>
 
         <button type="submit" disabled={disabled || isSubmitting} className="primary-button">

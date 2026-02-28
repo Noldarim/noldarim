@@ -6,7 +6,7 @@ import { render, screen, waitFor, fireEvent } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { mergeAnimatedEdges, NoldarimGraphView } from "./NoldarimGraphView";
-import { getCommits, getPipelineRun, getPipelineRunActivity, listPipelineRuns } from "../lib/api";
+import { getCommits, getMainBranchCommits, getPipelineRun, getPipelineRunActivity, getServerConfig, listPipelineRuns } from "../lib/api";
 import { useRunStore } from "../state/run-store";
 import { useProjectGraphStore } from "../state/project-graph-store";
 
@@ -14,13 +14,17 @@ vi.mock("../lib/api", () => ({
   listPipelineRuns: vi.fn(),
   getPipelineRun: vi.fn(),
   getPipelineRunActivity: vi.fn(),
-  getCommits: vi.fn()
+  getCommits: vi.fn(),
+  getMainBranchCommits: vi.fn(),
+  getServerConfig: vi.fn()
 }));
 
 const mockedListPipelineRuns = vi.mocked(listPipelineRuns);
 const mockedGetPipelineRun = vi.mocked(getPipelineRun);
 const mockedGetPipelineRunActivity = vi.mocked(getPipelineRunActivity);
 const mockedGetCommits = vi.mocked(getCommits);
+const mockedGetMainBranchCommits = vi.mocked(getMainBranchCommits);
+const mockedGetServerConfig = vi.mocked(getServerConfig);
 
 function deferred<T>() {
   let resolve!: (value: T) => void;
@@ -75,6 +79,12 @@ beforeEach(() => {
       { Hash: "ddd444", Message: "d", Author: "bot", Parents: [] }
     ]
   });
+  mockedGetMainBranchCommits.mockResolvedValue({
+    ProjectID: "proj-1",
+    RepositoryPath: "/tmp/repo",
+    Commits: []
+  });
+  mockedGetServerConfig.mockResolvedValue({ default_branch: "main" });
   useRunStore.getState().reset();
   useProjectGraphStore.getState().reset();
 });

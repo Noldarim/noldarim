@@ -19,6 +19,10 @@ export type AgentDefaults = {
   tool_options: Record<string, unknown>;
 };
 
+export type ServerConfig = {
+  default_branch: string;
+};
+
 export type AgentConfigInput = {
   tool_name: string;
   tool_version?: string;
@@ -41,6 +45,7 @@ export type StartPipelineRequest = {
   fork_from_run_id?: string;
   fork_after_step_id?: string;
   no_auto_fork?: boolean;
+  auto_promote?: boolean;
 };
 
 export type PipelineRunResult = {
@@ -106,11 +111,16 @@ export type RunStepSnapshot = {
   created_at?: string;
 };
 
+export type PipelineRunType = "standard" | "promote";
+
 export type PipelineRun = {
   id: string;
   project_id: string;
   name: string;
   status: PipelineRunStatus;
+  run_type?: PipelineRunType;
+  auto_promote?: boolean;
+  source_run_id?: string;
   base_commit_sha?: string;
   start_commit_sha?: string;
   head_commit_sha?: string;
@@ -130,6 +140,7 @@ export type CommitInfo = {
   Message: string;
   Author: string;
   Parents: string[];
+  Timestamp?: string;
 };
 
 export type CommitsLoadedEvent = {
@@ -192,6 +203,18 @@ export type CancelPipelineResult = {
   WorkflowStatus: string;
 };
 
+export type MergeQueueItem = {
+  run_id: string;
+  source_branch_name: string;
+  source_head_commit_sha: string;
+  queued_at: string;
+};
+
+export type MergeQueueState = {
+  items: MergeQueueItem[];
+  currently_processing: string;
+};
+
 export type WsEnvelope = {
   type: "event" | "error";
   event_type?: string;
@@ -218,6 +241,7 @@ export type PipelineDraft = {
   name: string;
   variables: Record<string, string>;
   steps: StepDraft[];
+  autoPromote?: boolean;
 };
 
 export type StepStatusView = "pending" | "running" | "completed" | "failed" | "skipped";

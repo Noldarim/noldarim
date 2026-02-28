@@ -39,6 +39,15 @@
   margin-bottom: 0.8rem;
 }
 
+.checkbox-label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  cursor: pointer;
+  font-size: 0.85rem;
+  color: var(--text-secondary);
+}
+
 .section-header-inline {
   display: flex;
   align-items: center;
@@ -132,6 +141,17 @@ button:hover {
 .danger-button:hover {
   background: linear-gradient(135deg, rgba(224, 85, 85, 0.2), rgba(224, 85, 85, 0.05));
   box-shadow: var(--glow-rose);
+}
+
+.promote-button {
+  border-color: var(--accent-violet);
+  color: var(--accent-violet);
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.1), transparent);
+}
+
+.promote-button:hover {
+  background: linear-gradient(135deg, rgba(168, 85, 247, 0.2), rgba(168, 85, 247, 0.05));
+  box-shadow: 0 0 16px rgba(168, 85, 247, 0.25);
 }
 
 button:disabled,

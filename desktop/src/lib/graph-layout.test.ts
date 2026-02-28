@@ -74,6 +74,7 @@ function makeInput(overrides: Partial<GraphInput> = {}): GraphInput {
   return {
     runs: [],
     commits: [],
+    mainCommits: [],
     runDetails: {},
     highlightedRunId: null,
     selectedStep: null,
@@ -1309,6 +1310,7 @@ describe("buildProjectGraph — realistic DB scenarios", () => {
     return {
       runs: [],
       commits: DEMO_COMMITS,
+      mainCommits: [],
       runDetails: {},
       highlightedRunId: null,
       selectedStep: null,
