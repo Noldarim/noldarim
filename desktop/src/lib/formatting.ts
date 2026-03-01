@@ -1,6 +1,8 @@
 // Copyright (C) 2025-2026 Noldarim
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import { durationToMs, formatDuration } from "./duration";
+
 /** Shared formatting utilities used across components. */
 
 export function formatTimestamp(value?: string): string {
@@ -33,3 +35,43 @@ export function formatTokens(n: number | undefined): string {
 export function messageFromError(error: unknown): string {
   return error instanceof Error ? error.message : "Unknown error";
 }
+
+export function formatDurationFromNanos(ns: number): string {
+  if (!ns || ns <= 0) return "0s";
+  return formatDuration(durationToMs(ns));
+}
+
+export function extractToolOutputFromPayload(rawPayload?: string): string | null {
+  if (!rawPayload) return null;
+  try {
+    const parsed = JSON.parse(rawPayload);
+
+    if (parsed.toolUseResult) {
+      if (parsed.toolUseResult.stdout) return parsed.toolUseResult.stdout;
+      if (parsed.toolUseResult.stderr) return parsed.toolUseResult.stderr;
+      if (parsed.toolUseResult.file?.content) return parsed.toolUseResult.file.content;
+    }
+
+    if (parsed.type === "user" && Array.isArray(parsed.message?.content)) {
+      for (const item of parsed.message.content) {
+        if (item.type === "tool_result" && item.content) {
+          return typeof item.content === "string" ? item.content : JSON.stringify(item.content);
+        }
+      }
+    }
+
+    if (parsed.type === "assistant" && Array.isArray(parsed.message?.content)) {
+      for (const item of parsed.message.content) {
+        if (item.type === "text" && item.text) {
+          return item.text;
+        }
+      }
+    }
+
+    return null;
+  } catch (e) {
+    if (import.meta.env.DEV) console.warn("extractToolOutputFromPayload: failed to parse raw_payload", e);
+    return null;
+  }
+}
+

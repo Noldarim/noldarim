@@ -5,9 +5,9 @@ import { useEffect, useRef } from "react";
 import { Diff2HtmlUI } from "diff2html/lib/ui/js/diff2html-ui-slim.js";
 import "diff2html/bundles/css/diff2html.min.css";
 
-type Props = { diff: string };
+type Props = { diff: string; inline?: boolean; open?: boolean };
 
-export function GitDiffView({ diff }: Props) {
+export function GitDiffView({ diff, inline = false, open }: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -28,10 +28,14 @@ export function GitDiffView({ diff }: Props) {
     };
   }, [diff]);
 
+  const diffContainer = <div className="diff-view" ref={containerRef} />;
+
+  if (inline) return diffContainer;
+
   return (
-    <details className="step-output-details">
+    <details className="step-output-details" open={open || undefined}>
       <summary>Git diff</summary>
-      <div className="diff-view" ref={containerRef} />
+      {diffContainer}
     </details>
   );
 }

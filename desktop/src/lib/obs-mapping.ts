@@ -8,6 +8,7 @@ export type StepActivityMap = Record<string, AIActivityRecord[]>;
 export type ToolGroup = {
   toolName: string;
   input: string;
+  resultEventId?: string;
   result?: {
     success: boolean;
     output: string;
@@ -70,6 +71,7 @@ export function groupToolEvents(events: AIActivityRecord[]): ToolGroup[] {
       if (index === undefined) {
         continue;
       }
+      groups[index].resultEventId = event.event_id;
       groups[index].result = {
         success: Boolean(event.tool_success),
         output: event.content_preview || "",

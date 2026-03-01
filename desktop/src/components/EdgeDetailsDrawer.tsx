@@ -5,9 +5,11 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { cancelPipeline, promotePipeline, startPipeline } from "../lib/api";
 import { durationToMs } from "../lib/duration";
-import { formatRunTimestamp, formatTokens, messageFromError } from "../lib/formatting";
+import { formatDurationFromNanos, formatRunTimestamp, formatTokens, messageFromError } from "../lib/formatting";
 import type { GraphSelection } from "../lib/graph-selection";
+import { groupToolEventsByName } from "../lib/obs-mapping";
 import { PipelineRunStatus, StepStatus, type AIActivityRecord, type AgentConfigInput, type PipelineRun, type StepResult } from "../lib/types";
+import { StepResultSummary, AgentOutput, GitDiffView, ToolActivityPanel, EventTimeline } from "./step-detail";
 
 type TabKey = "overview" | "metrics" | "diff" | "logs" | "config";
 
@@ -170,6 +172,16 @@ export function EdgeDetailsDrawer({
     if (!selectedStepId) return activities;
     return activities.filter((event) => event.step_id === selectedStepId);
   }, [activities, selectedStepId]);
+
+  const toolGroups = useMemo(
+    () => groupToolEventsByName(stepEvents),
+    [stepEvents]
+  );
+
+  const lastAgentOutput = useMemo(
+    () => orderedStepResults.slice().reverse().find((step) => step.agent_output?.trim())?.agent_output || "",
+    [orderedStepResults]
+  );
 
   const canEditConfig = selection?.kind === "step-edge" && selectedSnapshot?.agent_config;
 
@@ -383,19 +395,38 @@ export function EdgeDetailsDrawer({
 
         {activeTab === "overview" && (
           <section className="drawer-section">
-            <p><strong>Workflow status:</strong> {statusText}</p>
-            <p><strong>Created:</strong> {formatRunTimestamp(currentRun.created_at)}</p>
-            <p><strong>Base commit:</strong> <code>{(currentRun.base_commit_sha || "").slice(0, 8) || "-"}</code></p>
-            <p><strong>Start commit:</strong> <code>{(currentRun.start_commit_sha || "").slice(0, 8) || "-"}</code></p>
-            <p><strong>Head commit:</strong> <code>{(currentRun.head_commit_sha || "").slice(0, 8) || "running"}</code></p>
-            {currentRun.error_message && <p className="error-text"><strong>Error:</strong> {currentRun.error_message}</p>}
-            {(currentRun.start_commit_sha || currentRun.base_commit_sha) && (
-              <button
-                type="button"
-                onClick={() => onSelectBaseCommit(currentRun.start_commit_sha || currentRun.base_commit_sha || "")}
-              >
-                Select Source Commit
-              </button>
+            {currentSelection.kind === "step-edge" && selectedStepResult ? (
+              <>
+                <StepResultSummary result={selectedStepResult} />
+                {selectedStepResult.agent_output?.trim() && (
+                  <AgentOutput output={selectedStepResult.agent_output} defaultOpen />
+                )}
+              </>
+            ) : (
+              <>
+                <dl className="drawer-metrics-grid">
+                  <dt>Status</dt>
+                  <dd>{statusText}</dd>
+                  <dt>Created</dt>
+                  <dd>{formatRunTimestamp(currentRun.created_at)}</dd>
+                  <dt>Base commit</dt>
+                  <dd><code>{(currentRun.base_commit_sha || "").slice(0, 8) || "-"}</code></dd>
+                  <dt>Start commit</dt>
+                  <dd><code>{(currentRun.start_commit_sha || "").slice(0, 8) || "-"}</code></dd>
+                  <dt>Head commit</dt>
+                  <dd><code>{(currentRun.head_commit_sha || "").slice(0, 8) || "running"}</code></dd>
+                </dl>
+                {currentRun.error_message && <p className="error-text"><strong>Error:</strong> {currentRun.error_message}</p>}
+                {(currentRun.start_commit_sha || currentRun.base_commit_sha) && (
+                  <button
+                    type="button"
+                    onClick={() => onSelectBaseCommit(currentRun.start_commit_sha || currentRun.base_commit_sha || "")}
+                  >
+                    Select Source Commit
+                  </button>
+                )}
+                {lastAgentOutput && <AgentOutput output={lastAgentOutput} defaultOpen />}
+              </>
             )}
           </section>
         )}
@@ -403,18 +434,63 @@ export function EdgeDetailsDrawer({
         {activeTab === "metrics" && (
           <section className="drawer-section">
             {currentSelection.kind === "step-edge" && selectedStepResult ? (
-              <>
-                <p><strong>Tokens:</strong> {formatTokens((selectedStepResult.input_tokens ?? 0) + (selectedStepResult.output_tokens ?? 0))}</p>
-                <p><strong>Duration:</strong> {durationToMs(selectedStepResult.duration).toFixed(1)}ms</p>
-                <p><strong>Diff:</strong> {selectedStepResult.files_changed} files / +{selectedStepResult.insertions} -{selectedStepResult.deletions}</p>
-                <p><strong>Events:</strong> {stepEvents.length}</p>
-              </>
+              <dl className="drawer-metrics-grid">
+                <dt>Input tokens</dt>
+                <dd>{formatTokens(selectedStepResult.input_tokens)}</dd>
+                <dt>Output tokens</dt>
+                <dd>{formatTokens(selectedStepResult.output_tokens)}</dd>
+                {(selectedStepResult.cache_read_tokens > 0 || selectedStepResult.cache_create_tokens > 0) && (
+                  <>
+                    <dt>Cache read</dt>
+                    <dd>{formatTokens(selectedStepResult.cache_read_tokens)}</dd>
+                    <dt>Cache create</dt>
+                    <dd>{formatTokens(selectedStepResult.cache_create_tokens)}</dd>
+                  </>
+                )}
+                <dt>Duration</dt>
+                <dd>{formatDurationFromNanos(selectedStepResult.duration)}</dd>
+                <dt>Files changed</dt>
+                <dd>{selectedStepResult.files_changed} (+{selectedStepResult.insertions} -{selectedStepResult.deletions})</dd>
+                <dt>Events</dt>
+                <dd>{stepEvents.length}</dd>
+              </dl>
             ) : (
               <>
-                <p><strong>Tokens:</strong> {formatTokens(runTokens)}</p>
-                <p><strong>Duration:</strong> {runDurationMs.toFixed(1)}ms</p>
-                <p><strong>Steps:</strong> {orderedStepResults.length}</p>
-                <p><strong>Events:</strong> {activities.length}</p>
+                <dl className="drawer-metrics-grid">
+                  <dt>Total tokens</dt>
+                  <dd>{formatTokens(runTokens)}</dd>
+                  <dt>Duration</dt>
+                  <dd title={`${runDurationMs.toFixed(1)}ms`}>{formatDurationFromNanos(orderedStepResults.reduce((sum, s) => sum + s.duration, 0))}</dd>
+                  <dt>Steps</dt>
+                  <dd>{orderedStepResults.length}</dd>
+                  <dt>Events</dt>
+                  <dd>{activities.length}</dd>
+                </dl>
+                {orderedStepResults.length > 0 && (
+                  <>
+                    <h4 style={{ marginTop: "0.5rem" }}>Per-step breakdown</h4>
+                    <table className="drawer-step-table">
+                      <thead>
+                        <tr>
+                          <th>Step</th>
+                          <th>Tokens</th>
+                          <th>Duration</th>
+                          <th>Files</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {orderedStepResults.map((step) => (
+                          <tr key={step.step_id}>
+                            <td>{step.step_name || step.step_id}</td>
+                            <td>{formatTokens((step.input_tokens ?? 0) + (step.output_tokens ?? 0))}</td>
+                            <td>{formatDurationFromNanos(step.duration)}</td>
+                            <td>{step.files_changed} (+{step.insertions} -{step.deletions})</td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                )}
               </>
             )}
           </section>
@@ -422,27 +498,27 @@ export function EdgeDetailsDrawer({
 
         {activeTab === "diff" && (
           <section className="drawer-section">
-            <pre className="edge-detail-pre">
-              {selection.kind === "step-edge"
-                ? selectedStepResult?.git_diff || "No diff for this step."
-                : orderedStepResults.map((step) => step.git_diff).filter(Boolean).join("\n\n") || "No diff for this run."}
-            </pre>
+            {currentSelection.kind === "step-edge"
+              ? (selectedStepResult?.git_diff
+                ? <GitDiffView diff={selectedStepResult.git_diff} inline />
+                : <p className="muted-text">No diff for this step.</p>)
+              : (orderedStepResults.filter((s) => s.git_diff).length > 0
+                ? orderedStepResults
+                    .filter((step) => step.git_diff)
+                    .map((step) => (
+                      <div key={step.step_id}>
+                        <h4>{step.step_name || step.step_id}</h4>
+                        <GitDiffView diff={step.git_diff} inline />
+                      </div>
+                    ))
+                : <p className="muted-text">No diff for this run.</p>)}
           </section>
         )}
 
         {activeTab === "logs" && (
           <section className="drawer-section">
-            {stepEvents.length === 0 && <p className="muted-text">No events.</p>}
-            {stepEvents.map((event) => (
-              <article key={event.event_id} className="edge-log-item">
-                <p>
-                  <strong>{event.event_type}</strong> {event.tool_name ? `· ${event.tool_name}` : ""}
-                </p>
-                <p className="muted-text">{event.timestamp}</p>
-                {event.tool_input_summary && <p>{event.tool_input_summary}</p>}
-                {event.content_preview && <pre className="edge-detail-pre">{event.content_preview}</pre>}
-              </article>
-            ))}
+            <ToolActivityPanel groups={toolGroups} events={stepEvents} />
+            <EventTimeline events={stepEvents} />
           </section>
         )}
 
