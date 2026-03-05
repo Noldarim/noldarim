@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "playwright": {
+      "command": "bunx",
+      "args": [
+        "@playwright/mcp@latest",
+        "--viewport-size=1280x720",
+        "--allowed-origins=http://localhost:1420"
+      ]
+    }
+  }
+}

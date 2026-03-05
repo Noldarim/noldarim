@@ -7,11 +7,11 @@ body {
   background-color: var(--bg-base);
   background-image:
     /* Fine grid */
-    linear-gradient(rgba(62, 198, 224, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(62, 198, 224, 0.035) 1px, transparent 1px),
+    linear-gradient(rgba(62, 198, 224, 0.025) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 198, 224, 0.025) 1px, transparent 1px),
     /* Major grid */
-    linear-gradient(rgba(62, 198, 224, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(62, 198, 224, 0.06) 1px, transparent 1px);
+    linear-gradient(rgba(62, 198, 224, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(62, 198, 224, 0.04) 1px, transparent 1px);
   background-size: 20px 20px, 20px 20px, 100px 100px, 100px 100px;
   min-height: 100vh;
 }

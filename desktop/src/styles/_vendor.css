@@ -6,7 +6,7 @@
   --xy-node-background-color: var(--bg-surface-solid);
   --xy-edge-stroke: var(--accent-cyan);
   --xy-edge-stroke-selected: var(--accent-gold);
-  --xy-edge-stroke-width: 1.5;
+  --xy-edge-stroke-width: 2;
   --xy-connectionline-stroke: var(--accent-cyan);
   --xy-minimap-background-color: var(--bg-base);
   --xy-controls-button-background-color: var(--bg-surface-solid);
@@ -37,7 +37,7 @@
 }
 
 .react-flow__edge path {
-  filter: drop-shadow(0 0 3px rgba(62, 198, 224, 0.3));
+  filter: drop-shadow(0 0 3px rgba(62, 198, 224, 0.4));
 }
 
 .react-flow__edge.pipeline-edge--clickable path {
