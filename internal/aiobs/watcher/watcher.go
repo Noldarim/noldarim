@@ -22,8 +22,8 @@ import (
 	"github.com/noldarim/noldarim/internal/logger"
 )
 
-// uuidFileRegex matches UUID-named .jsonl files (Claude session transcripts)
-var uuidFileRegex = regexp.MustCompile(`^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\.jsonl$`)
+// transcriptFileRegex matches UUID-named .jsonl files (main sessions) AND agent-*.jsonl files (sub-agent sessions)
+var transcriptFileRegex = regexp.MustCompile(`^([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}|agent-[a-zA-Z0-9]+)\.jsonl$`)
 
 var log = logger.GetLogger("aiobs.watcher")
 
@@ -41,6 +41,8 @@ type RawLine struct {
 
 	// Timestamp when the line was read
 	Timestamp time.Time `json:"timestamp"`
+
+	SourceFile string `json:"source_file"`
 }
 
 // activeFile tracks the state of a single file being watched
@@ -73,7 +75,7 @@ type TranscriptWatcher struct {
 	initialized  bool
 	closed       bool
 	linesRead    int64
-	lineNumber   int64                  // Current line number for RawEntry
+	lineNumber   int64 // Current line number for RawEntry
 	lastError    error
 	activeFiles  map[string]*activeFile // All files currently being watched
 }
@@ -341,7 +343,7 @@ func (w *TranscriptWatcher) discoverAndAddNewFiles() {
 		if entry.IsDir() {
 			continue
 		}
-		if !uuidFileRegex.MatchString(entry.Name()) {
+		if !transcriptFileRegex.MatchString(entry.Name()) {
 			continue
 		}
 
@@ -421,16 +423,17 @@ func (w *TranscriptWatcher) readAvailableLines(af *activeFile) {
 		}
 
 		// Parse and emit event
-		w.processLine(line)
+		w.processLine(line, filepath.Base(af.path))
 	}
 }
 
-func (w *TranscriptWatcher) processLine(line []byte) {
+func (w *TranscriptWatcher) processLine(line []byte, sourceFile string) {
 	if w.rawMode {
 		// Raw mode: emit the line as-is without parsing
 		rawLine := RawLine{
-			Line:      line,
-			Timestamp: time.Now(),
+			Line:       line,
+			Timestamp:  time.Now(),
+			SourceFile: sourceFile,
 		}
 
 		// Non-blocking send to raw event channel

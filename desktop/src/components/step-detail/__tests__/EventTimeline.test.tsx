@@ -26,7 +26,7 @@ describe("EventTimeline", () => {
 
   it("renders event type and content preview", () => {
     render(<EventTimeline events={[makeEvent({ content_preview: "Hello world" })]} />);
-    expect(screen.getByText("tool_use")).toBeInTheDocument();
+    expect(screen.getByText("Tool Call")).toBeInTheDocument();
     expect(screen.getByText("Hello world")).toBeInTheDocument();
   });
 

@@ -4,6 +4,7 @@
 import { useState } from "react";
 import type { AIActivityRecord } from "../../lib/types";
 import { formatTimestamp, extractToolOutputFromPayload } from "../../lib/formatting";
+import { getEventStyle } from "../../lib/obs-categories";
 
 type Props = { events: AIActivityRecord[] };
 
@@ -50,17 +51,23 @@ export function EventTimeline({ events }: Props) {
           const isTruncated = event.content_preview?.endsWith("...") && !!event.raw_payload;
           const isExpanded = expandedEvents.has(event.event_id);
           const fullContent = isExpanded ? extractToolOutputFromPayload(event.raw_payload) : null;
+          const style = getEventStyle(event.kind, event.event_type);
 
           return (
-            <li key={event.event_id} className="event-list__item">
+            <li
+              key={event.event_id}
+              className="event-list__item"
+              style={{ borderLeftColor: style.borderColor, borderLeftWidth: "3px" }}
+            >
               <div className="event-list__meta">
                 <span>{formatTimestamp(event.timestamp)}</span>
                 <span>
-                  {event.event_type}
+                  <span style={{ color: style.color }}>{style.icon}</span>{" "}
+                  <span style={{ color: style.color }}>{style.label}</span>
                   {event.tool_name && <span className="tool-count-badge">{event.tool_name}</span>}
                   {event.event_type === "tool_result" && event.tool_success !== undefined && event.tool_success !== null && (
                     <span className={event.tool_success ? "tool-result-badge--success" : "tool-result-badge--failed"}>
-                      {event.tool_success ? "● Success" : "● Failed"}
+                      {event.tool_success ? "● ok" : "● fail"}
                     </span>
                   )}
                 </span>
@@ -86,6 +93,10 @@ export function EventTimeline({ events }: Props) {
 
               {event.tool_error && (
                 <p className="error-text">{event.tool_error}</p>
+              )}
+
+              {event.is_sidechain && (
+                <span className="event-sidechain-badge">sub-agent</span>
               )}
             </li>
           );

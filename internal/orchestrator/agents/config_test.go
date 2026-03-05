@@ -49,7 +49,7 @@ func TestAgentConfig_Validate(t *testing.T) {
 				PromptTemplate: "Test prompt",
 			},
 			wantErr: true,
-			errMsg:  "unsupported tool: gemini (supported: [claude test])",
+			errMsg:  "unsupported tool: gemini (supported: [claude opencode test])",
 		},
 	}
 

@@ -130,6 +130,9 @@ export const AIActivityRecordSchema = z.object({
   run_id: z.string(),
   step_id: z.string().optional(),
   event_type: z.string(),
+  kind: z.string().optional(),
+  level: z.string().optional(),
+  sequence: z.number().optional(),
   timestamp: z.string(),
   tool_name: z.string().optional(),
   tool_input_summary: z.string().optional(),
@@ -140,7 +143,12 @@ export const AIActivityRecordSchema = z.object({
   output_tokens: z.number().optional(),
   cache_read_tokens: z.number().optional(),
   cache_create_tokens: z.number().optional(),
-  raw_payload: z.string().optional()
+  raw_payload: z.string().optional(),
+  // Sub-agent tracking
+  is_sidechain: z.boolean().nullable().optional(),
+  agent_id: z.string().optional(),
+  parent_session_id: z.string().optional(),
+  source_file: z.string().optional()
 });
 
 export const AIActivityBatchEventSchema = z.object({

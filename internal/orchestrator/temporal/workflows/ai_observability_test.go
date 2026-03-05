@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"go.temporal.io/sdk/testsuite"
 
+	aiobsTypes "github.com/noldarim/noldarim/internal/aiobs/types"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 	"github.com/noldarim/noldarim/internal/orchestrator/temporal/types"
 )
@@ -37,6 +38,10 @@ func UpdateParsedEventActivity(ctx context.Context, record *models.AIActivityRec
 	return nil
 }
 
+func SaveCompleteEventActivity(ctx context.Context, record *models.AIActivityRecord) error {
+	return nil
+}
+
 // Note: PublishAIActivityEventActivity is already defined in process_task_test.go
 
 // registerAIObsActivities registers all activities needed for AIObservability workflow tests
@@ -45,6 +50,7 @@ func registerAIObsActivities(env *testsuite.TestWorkflowEnvironment) {
 	env.RegisterActivity(SaveRawEventActivity)
 	env.RegisterActivity(ParseEventActivity)
 	env.RegisterActivity(UpdateParsedEventActivity)
+	env.RegisterActivity(SaveCompleteEventActivity)
 	env.RegisterActivity(PublishAIActivityEventActivity)
 }
 
@@ -84,6 +90,7 @@ func TestAIObservabilityWorkflow_Success_ActivityCompletesNaturally(t *testing.T
 		Success: true,
 	}, nil).Maybe()
 	env.OnActivity("UpdateParsedEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("SaveCompleteEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("PublishAIActivityEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute workflow
@@ -138,6 +145,7 @@ func TestAIObservabilityWorkflow_ActivityCancelled_WorkflowCompletes(t *testing.
 		Success: true,
 	}, nil).Maybe()
 	env.OnActivity("UpdateParsedEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
+	env.OnActivity("SaveCompleteEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
 	env.OnActivity("PublishAIActivityEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
 
 	// Execute workflow
@@ -223,7 +231,7 @@ func TestAIObservabilityWorkflow_RawEventsForwardedViaSignals(t *testing.T) {
 				TaskID:    "task-events",
 				ProjectID: "project-events",
 			}
-			env.SignalWorkflow(RawTranscriptLineSignal, rawEvent)
+			env.SignalWorkflow(types.RawTranscriptLineSignal, rawEvent)
 		}
 	}, 10*time.Millisecond)
 
@@ -373,8 +381,10 @@ func TestAIObservabilityWorkflow_WorkflowName(t *testing.T) {
 
 func TestAIObservabilityWorkflow_SignalNames(t *testing.T) {
 	// Verify signal name constants are correct
-	assert.Equal(t, "raw-transcript-line", RawTranscriptLineSignal)
-	assert.Equal(t, "step-change", StepChangeSignal)
+	assert.Equal(t, "raw-transcript-line", types.RawTranscriptLineSignal)
+	assert.Equal(t, "raw-transcript-batch", types.RawTranscriptBatchSignal)
+	assert.Equal(t, "parsed-transcript-batch", types.ParsedTranscriptBatchSignal)
+	assert.Equal(t, "step-change", types.StepChangeSignal)
 }
 
 func TestAIObservabilityWorkflow_StepChangeSignal_TagsEvents(t *testing.T) {
@@ -438,20 +448,20 @@ func TestAIObservabilityWorkflow_StepChangeSignal_TagsEvents(t *testing.T) {
 
 	// Batch 1: step-a with 2 events
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(StepChangeSignal, "step-a")
-		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
-		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
+		env.SignalWorkflow(types.StepChangeSignal, "step-a")
+		env.SignalWorkflow(types.RawTranscriptLineSignal, makeRawEvent())
+		env.SignalWorkflow(types.RawTranscriptLineSignal, makeRawEvent())
 	}, 10*time.Millisecond)
 
 	// Batch 2: step-b with 1 event (arrives after batch 1 activities complete)
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(StepChangeSignal, "step-b")
-		env.SignalWorkflow(RawTranscriptLineSignal, makeRawEvent())
+		env.SignalWorkflow(types.StepChangeSignal, "step-b")
+		env.SignalWorkflow(types.RawTranscriptLineSignal, makeRawEvent())
 	}, 50*time.Millisecond)
 
 	// Batch 3: clear step context (like pipeline does after loop ends)
 	env.RegisterDelayedCallback(func() {
-		env.SignalWorkflow(StepChangeSignal, "")
+		env.SignalWorkflow(types.StepChangeSignal, "")
 	}, 80*time.Millisecond)
 
 	env.ExecuteWorkflow(AIObservabilityWorkflow, input)
@@ -515,7 +525,7 @@ func TestAIObservabilityWorkflow_SaveEventFailure_ContinuesProcessing(t *testing
 			TaskID:    "task-save-fail",
 			ProjectID: "project-save-fail",
 		}
-		env.SignalWorkflow(RawTranscriptLineSignal, rawEvent)
+		env.SignalWorkflow(types.RawTranscriptLineSignal, rawEvent)
 	}, 10*time.Millisecond)
 
 	// Execute workflow
@@ -584,7 +594,7 @@ func TestAIObservabilityWorkflow_ParseEventFailure_ContinuesProcessing(t *testin
 			TaskID:    "task-parse-fail",
 			ProjectID: "project-parse-fail",
 		}
-		env.SignalWorkflow(RawTranscriptLineSignal, rawEvent)
+		env.SignalWorkflow(types.RawTranscriptLineSignal, rawEvent)
 	}, 10*time.Millisecond)
 
 	// Execute workflow
@@ -672,7 +682,7 @@ func TestAIObservabilityWorkflow_MultipleEventsWithMixedResults(t *testing.T) {
 				TaskID:    "task-mixed",
 				ProjectID: "project-mixed",
 			}
-			env.SignalWorkflow(RawTranscriptLineSignal, rawEvent)
+			env.SignalWorkflow(types.RawTranscriptLineSignal, rawEvent)
 		}
 	}, 10*time.Millisecond)
 
@@ -695,6 +705,118 @@ func TestAIObservabilityWorkflow_MultipleEventsWithMixedResults(t *testing.T) {
 	assert.Equal(t, 5, updateCount, "UpdateParsedEventActivity should be called 5 times")
 	assert.Equal(t, 5, publishCount, "PublishAIActivityEventActivity should be called 5 times")
 	assert.Equal(t, 5, result.EventsCount, "Should have processed 5 events")
+
+	env.AssertExpectations(t)
+}
+
+func TestAIObservabilityWorkflow_ParsedBatchSignal_SavesAndPublishes(t *testing.T) {
+	testSuite := &testsuite.WorkflowTestSuite{}
+	env := testSuite.NewTestWorkflowEnvironment()
+	registerAIObsActivities(env)
+
+	input := types.AIObservabilityWorkflowInput{
+		TaskID:                "task-parsed",
+		RunID:                 "run-parsed",
+		ProjectID:             "project-parsed",
+		TranscriptDir:         "/home/noldarim/.claude/projects/-workspace",
+		ProcessTaskWorkflowID: "process-task-parsed",
+		OrchestratorTaskQueue: "noldarim-task-queue",
+		RuntimeName:           "claude",
+	}
+
+	saveCompleteCount := 0
+	publishCount := 0
+
+	// Mock WatchTranscriptActivity - completes after signals are processed
+	env.OnActivity("WatchTranscriptActivity", mock.Anything, mock.Anything).Return(
+		&types.WatchTranscriptActivityOutput{Success: true}, nil,
+	).After(100 * time.Millisecond)
+
+	// Mock SaveCompleteEventActivity - track calls
+	env.OnActivity("SaveCompleteEventActivity", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		saveCompleteCount++
+	}).Return(nil)
+
+	// Mock PublishAIActivityEventActivity - track calls
+	env.OnActivity("PublishAIActivityEventActivity", mock.Anything, mock.Anything).Run(func(args mock.Arguments) {
+		publishCount++
+	}).Return(nil)
+
+	// Legacy activities should NOT be called for parsed batches
+	env.OnActivity("SaveRawEventActivity", mock.Anything, mock.Anything).Return(&types.SaveRawEventOutput{
+		EventID: "test-event-id",
+		Success: true,
+	}, nil).Maybe()
+	env.OnActivity("ParseEventActivity", mock.Anything, mock.Anything).Return(&types.ParseEventOutput{
+		Events:  []*models.AIActivityRecord{{EventType: models.AIEventToolUse}},
+		Success: true,
+	}, nil).Maybe()
+	env.OnActivity("UpdateParsedEventActivity", mock.Anything, mock.Anything).Return(nil).Maybe()
+
+	// Send parsed transcript batch signal (simulating parser mode)
+	env.RegisterDelayedCallback(func() {
+		batch := types.ParsedTranscriptBatch{
+			Events: []types.ParsedTranscriptEvent{
+				{
+					ParsedEvents: []aiobsTypes.ParsedEvent{
+						{
+							EventID:   "evt-1",
+							SessionID: "session-1",
+							EventType: aiobsTypes.EventTypeSessionStart,
+							Kind:      aiobsTypes.KindLifecycle,
+							Level:     aiobsTypes.LevelInfo,
+							Timestamp: time.Now(),
+						},
+						{
+							EventID:   "evt-2",
+							SessionID: "session-1",
+							EventType: aiobsTypes.EventTypeUserPrompt,
+							Kind:      aiobsTypes.KindMessage,
+							Level:     aiobsTypes.LevelInfo,
+							Timestamp: time.Now(),
+						},
+					},
+					TaskID:    "task-parsed",
+					RunID:     "run-parsed",
+					ProjectID: "project-parsed",
+					Timestamp: time.Now(),
+				},
+				{
+					ParsedEvents: []aiobsTypes.ParsedEvent{
+						{
+							EventID:   "evt-3",
+							SessionID: "session-1",
+							EventType: aiobsTypes.EventTypeToolUse,
+							Kind:      aiobsTypes.KindTool,
+							Level:     aiobsTypes.LevelInfo,
+							Timestamp: time.Now(),
+							ToolName:  "Bash",
+						},
+					},
+					TaskID:    "task-parsed",
+					RunID:     "run-parsed",
+					ProjectID: "project-parsed",
+					Timestamp: time.Now(),
+				},
+			},
+		}
+		env.SignalWorkflow(types.ParsedTranscriptBatchSignal, batch)
+	}, 10*time.Millisecond)
+
+	env.ExecuteWorkflow(AIObservabilityWorkflow, input)
+
+	assert.True(t, env.IsWorkflowCompleted())
+	assert.NoError(t, env.GetWorkflowError())
+
+	var result types.AIObservabilityWorkflowOutput
+	err := env.GetWorkflowResult(&result)
+	assert.NoError(t, err)
+	assert.True(t, result.Success)
+
+	// 3 parsed events → 3 SaveComplete + 3 Publish calls
+	assert.Equal(t, 3, saveCompleteCount, "SaveCompleteEventActivity should be called 3 times")
+	assert.Equal(t, 3, publishCount, "PublishAIActivityEventActivity should be called 3 times")
+	assert.Equal(t, 3, result.EventsCount, "Should have processed 3 events")
 
 	env.AssertExpectations(t)
 }

@@ -13,6 +13,7 @@ import (
 )
 
 // registry holds registered adapters by name.
+// Observers are accessed via agents.GetRuntime(name).Observability() instead.
 var registry = make(map[string]Adapter)
 var registryMu sync.RWMutex
 var initialized bool

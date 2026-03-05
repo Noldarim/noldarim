@@ -11,16 +11,17 @@ import (
 // TranscriptEntry represents a single entry in Claude Code's transcript.jsonl file.
 type TranscriptEntry struct {
 	// Common fields for all entry types
-	Type        string `json:"type"`                  // "user", "assistant", "summary", "system", "queue-operation"
-	UUID        string `json:"uuid"`                  // Unique message ID
-	ParentUUID  string `json:"parentUuid,omitempty"`  // Links messages in conversation
-	SessionID   string `json:"sessionId,omitempty"`   // Session identifier
-	RequestID   string `json:"requestId,omitempty"`   // Groups assistant entries from same API call
-	Timestamp   string `json:"timestamp"`             // ISO 8601 timestamp
-	CWD         string `json:"cwd,omitempty"`         // Working directory
-	Version     string `json:"version,omitempty"`     // Claude Code version
-	IsSidechain bool   `json:"isSidechain,omitempty"` // Side conversation
-	UserType    string `json:"userType,omitempty"`    // "external", "internal"
+	Type        string `json:"type"`                 // "user", "assistant", "summary", "system", "queue-operation"
+	UUID        string `json:"uuid"`                 // Unique message ID
+	ParentUUID  string `json:"parentUuid,omitempty"` // Links messages in conversation
+	SessionID   string `json:"sessionId,omitempty"`  // Session identifier
+	RequestID   string `json:"requestId,omitempty"`  // Groups assistant entries from same API call
+	Timestamp   string `json:"timestamp"`            // ISO 8601 timestamp
+	CWD         string `json:"cwd,omitempty"`        // Working directory
+	Version     string `json:"version,omitempty"`    // Claude Code version
+	UserType    string `json:"userType,omitempty"`   // "external", "internal"
+	IsSidechain bool   `json:"isSidechain,omitempty"`
+	AgentID     string `json:"agentId,omitempty"`
 
 	// Message content (for user/assistant types)
 	Message *Message `json:"message,omitempty"`

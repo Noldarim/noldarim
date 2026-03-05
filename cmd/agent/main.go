@@ -12,6 +12,7 @@ import (
 	"github.com/noldarim/noldarim/internal/aiobs/adapters"
 	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/logger"
+	"github.com/noldarim/noldarim/internal/orchestrator/agents"
 	"github.com/noldarim/noldarim/internal/orchestrator/temporal/activities"
 	"github.com/noldarim/noldarim/internal/orchestrator/temporal/workflows"
 
@@ -42,6 +43,10 @@ func main() {
 	// Register AI adapters for transcript parsing
 	adapters.RegisterAll()
 	agentLog.Info().Strs("adapters", adapters.RegisteredAdapters()).Msg("Registered AI adapters")
+
+	// Register agent runtimes for Observer/Parser pipeline
+	agents.InitRuntimes()
+	agentLog.Info().Strs("runtimes", agents.RegisteredRuntimes()).Msg("Registered agent runtimes")
 
 	// Get environment variables
 	hostPort := os.Getenv("TEMPORAL_HOST_PORT")

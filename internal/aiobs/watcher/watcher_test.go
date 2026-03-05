@@ -651,6 +651,26 @@ func TestAdapterRegistry(t *testing.T) {
 	assert.Equal(t, "claude", adapter.Name())
 }
 
+func TestTranscriptFileRegex_MatchesExpectedPatterns(t *testing.T) {
+	testCases := []struct {
+		name     string
+		fileName string
+		matches  bool
+	}{
+		{name: "uuid transcript matches", fileName: "88ad3a71-4c86-4b19-b41d-71a7b027ee63.jsonl", matches: true},
+		{name: "agent lowercase id matches", fileName: "agent-abc123.jsonl", matches: true},
+		{name: "agent mixed id matches", fileName: "agent-XyZ789.jsonl", matches: true},
+		{name: "random file rejected", fileName: "random.jsonl", matches: false},
+		{name: "empty agent id rejected", fileName: "agent-.jsonl", matches: false},
+	}
+
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.matches, transcriptFileRegex.MatchString(tc.fileName))
+		})
+	}
+}
+
 func TestTranscriptWatcher_DiscoverUUID_SingleFile(t *testing.T) {
 	// Test UUID discovery mode with a single UUID-named file
 	ctx, cancel := context.WithCancel(context.Background())
@@ -771,10 +791,10 @@ func TestTranscriptWatcher_DiscoverUUID_IgnoresNonUUID(t *testing.T) {
 
 	// Create some non-UUID files that should be ignored
 	nonUUIDFiles := []string{
-		"transcript.jsonl",           // No UUID
-		"settings.json",              // Wrong extension
-		"12345.jsonl",                // Not UUID format
-		"not-a-uuid-at-all.jsonl",    // Not UUID format
+		"transcript.jsonl",        // No UUID
+		"settings.json",           // Wrong extension
+		"12345.jsonl",             // Not UUID format
+		"not-a-uuid-at-all.jsonl", // Not UUID format
 	}
 	for _, name := range nonUUIDFiles {
 		f, _ := os.Create(filepath.Join(tmpDir, name))
@@ -920,7 +940,7 @@ func TestTranscriptWatcher_DiscoverUUID_MultipleFiles(t *testing.T) {
 	// Verify a file was discovered
 	stats := watcher.Stats()
 	assert.NotEmpty(t, stats.ActiveFiles)
-	assert.True(t, uuidFileRegex.MatchString(stats.ActiveFiles[0]))
+	assert.True(t, transcriptFileRegex.MatchString(stats.ActiveFiles[0]))
 }
 
 // ============================================================================

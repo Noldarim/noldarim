@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"time"
 
+	aiobsTypes "github.com/noldarim/noldarim/internal/aiobs/types"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 )
 
@@ -28,6 +29,14 @@ type RawTranscriptEvent struct {
 
 	// ProjectID for event context (set by activity)
 	ProjectID string `json:"project_id"`
+
+	SourceFile string `json:"source_file"`
+}
+
+// RawTranscriptBatch is a batch of raw transcript events.
+// Sent as a single signal to reduce Temporal workflow history growth.
+type RawTranscriptBatch struct {
+	Events []RawTranscriptEvent `json:"events"`
 }
 
 // SaveRawEventInput is the input for SaveRawEventActivity.
@@ -78,6 +87,22 @@ type ParseEventInput struct {
 	// RawPayload is the raw JSON line to parse
 	// This is passed directly to avoid a database round-trip
 	RawPayload json.RawMessage `json:"raw_payload"`
+}
+
+// ParsedTranscriptEvent contains parsed events from a single transcript line.
+// This is the parsed equivalent of RawTranscriptEvent, produced by the Observer/Parser pipeline.
+type ParsedTranscriptEvent struct {
+	ParsedEvents []aiobsTypes.ParsedEvent `json:"parsed_events"`
+	TaskID       string                    `json:"task_id"`
+	RunID        string                    `json:"run_id"`
+	ProjectID    string                    `json:"project_id"`
+	Timestamp    time.Time                 `json:"timestamp"`
+}
+
+// ParsedTranscriptBatch is a batch of parsed transcript events.
+// Sent as a single signal to reduce Temporal workflow history growth.
+type ParsedTranscriptBatch struct {
+	Events []ParsedTranscriptEvent `json:"events"`
 }
 
 // ParseEventOutput is the output from ParseEventActivity.

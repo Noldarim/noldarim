@@ -23,20 +23,20 @@ var ErrDirectoryWatcherClosed = errors.New("directory watcher is closed")
 // individual TranscriptWatchers for each discovered file. It merges events from all
 // active watchers into a single channel.
 type DirectoryWatcher struct {
-	dir           string
-	source        string
-	pollInterval  time.Duration
-	bufferSize    int
-	watchers      map[string]*TranscriptWatcher // UUID filename -> watcher
-	eventChan     chan types.ParsedEvent
-	errorChan     chan error
-	doneChan      chan struct{}
-	ctx           context.Context
-	cancel        context.CancelFunc
-	mu            sync.RWMutex
-	initialized   bool
-	closed        bool
-	lastError     error
+	dir          string
+	source       string
+	pollInterval time.Duration
+	bufferSize   int
+	watchers     map[string]*TranscriptWatcher // UUID filename -> watcher
+	eventChan    chan types.ParsedEvent
+	errorChan    chan error
+	doneChan     chan struct{}
+	ctx          context.Context
+	cancel       context.CancelFunc
+	mu           sync.RWMutex
+	initialized  bool
+	closed       bool
+	lastError    error
 }
 
 // DirectoryWatcherConfig holds configuration for a DirectoryWatcher.
@@ -235,7 +235,7 @@ func (dw *DirectoryWatcher) scanForNewFiles() {
 		if entry.IsDir() {
 			continue
 		}
-		if !uuidFileRegex.MatchString(entry.Name()) {
+		if !transcriptFileRegex.MatchString(entry.Name()) {
 			continue
 		}
 

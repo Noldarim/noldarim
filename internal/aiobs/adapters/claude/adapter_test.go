@@ -119,6 +119,70 @@ func TestAdapter_ParseToolUse(t *testing.T) {
 	assert.Equal(t, "ls -la", event.ToolInputSummary)
 }
 
+func TestAdapter_ParseToolUse_TaskEmitsSubagentStart(t *testing.T) {
+	adapter := &Adapter{}
+
+	rawJSON := []byte(`{
+		"type": "assistant",
+		"uuid": "task-tool-use-uuid",
+		"timestamp": "2025-01-15T10:30:00.000Z",
+		"sessionId": "session-123",
+		"message": {
+			"role": "assistant",
+			"content": [
+				{
+					"type": "tool_use",
+					"id": "tool-task-123",
+					"name": "Task",
+					"input": {
+						"subagent_type": "explore",
+						"prompt": "Inspect the codebase for parsing edge cases"
+					}
+				}
+			]
+		}
+	}`)
+
+	events := parseEntry(t, adapter, rawJSON)
+	require.Len(t, events, 2)
+
+	toolUseEvent := events[0]
+	assert.Equal(t, types.EventTypeToolUse, toolUseEvent.EventType)
+	assert.Equal(t, "Task", toolUseEvent.ToolName)
+
+	subagentStartEvent := events[1]
+	assert.Equal(t, types.EventTypeSubagentStart, subagentStartEvent.EventType)
+	assert.Equal(t, "Task", subagentStartEvent.ToolName)
+	assert.Contains(t, subagentStartEvent.ContentPreview, "Spawning sub-agent [explore]")
+	assert.Contains(t, subagentStartEvent.ToolInputSummary, "Inspect the codebase")
+}
+
+func TestAdapter_ParseEntry_PropagatesSidechainAndAgentID(t *testing.T) {
+	adapter := &Adapter{}
+
+	rawJSON := []byte(`{
+		"type": "assistant",
+		"uuid": "sidechain-uuid",
+		"timestamp": "2025-01-15T10:30:00.000Z",
+		"sessionId": "session-123",
+		"isSidechain": true,
+		"agentId": "abc123",
+		"message": {
+			"role": "assistant",
+			"content": [
+				{"type": "text", "text": "Sub-agent output"}
+			]
+		}
+	}`)
+
+	events := parseEntry(t, adapter, rawJSON)
+	require.Len(t, events, 1)
+
+	event := events[0]
+	assert.True(t, event.IsSidechain)
+	assert.Equal(t, "abc123", event.AgentID)
+}
+
 func TestAdapter_ParseToolUse_FileOperations(t *testing.T) {
 	adapter := &Adapter{}
 
@@ -305,6 +369,26 @@ func TestAdapter_ParseSummary(t *testing.T) {
 	event := events[0]
 	assert.Equal(t, types.EventTypeSessionEnd, event.EventType)
 	assert.False(t, event.IsHumanInput)
+}
+
+func TestAdapter_ParseSummary_SidechainEmitsSubagentStop(t *testing.T) {
+	adapter := &Adapter{}
+
+	rawJSON := []byte(`{
+		"type": "summary",
+		"uuid": "summary-sidechain-uuid",
+		"timestamp": "2025-01-15T10:30:00.000Z",
+		"sessionId": "session-123",
+		"isSidechain": true,
+		"summary": "Sub-agent completed"
+	}`)
+
+	events := parseEntry(t, adapter, rawJSON)
+	require.Len(t, events, 1)
+
+	event := events[0]
+	assert.Equal(t, types.EventTypeSubagentStop, event.EventType)
+	assert.NotEqual(t, types.EventTypeSessionEnd, event.EventType)
 }
 
 func TestAdapter_ParseSystem(t *testing.T) {

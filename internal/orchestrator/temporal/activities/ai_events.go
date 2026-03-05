@@ -180,6 +180,31 @@ func (a *AIEventActivities) ParseEventActivity(
 	}, nil
 }
 
+// SaveCompleteEventActivity saves a fully-parsed AIActivityRecord to the database.
+// Used by the new Observer/Parser pipeline where events arrive already parsed.
+// Unlike SaveRawEventActivity + ParseEventActivity + UpdateParsedEventActivity,
+// this does a single database write with all fields populated.
+func (a *AIEventActivities) SaveCompleteEventActivity(
+	ctx context.Context,
+	record *models.AIActivityRecord,
+) error {
+	logger := activity.GetLogger(ctx)
+	logger.Debug("Saving complete event",
+		"eventID", record.EventID,
+		"eventType", record.EventType,
+		"taskID", record.TaskID)
+
+	activity.RecordHeartbeat(ctx, "Saving complete event to database")
+
+	if err := a.dataService.SaveAIActivityRecord(ctx, record); err != nil {
+		logger.Error("Failed to save complete event", "error", err, "eventID", record.EventID)
+		return err
+	}
+
+	logger.Debug("Complete event saved", "eventID", record.EventID, "eventType", record.EventType)
+	return nil
+}
+
 // UpdateParsedEventActivity updates an existing raw event record with parsed data.
 // This is called after ParseEventActivity succeeds to persist the parsed event_type
 // and other fields to the database, enabling historical event retrieval with full data.

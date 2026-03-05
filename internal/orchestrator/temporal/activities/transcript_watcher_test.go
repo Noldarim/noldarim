@@ -36,7 +36,7 @@ func TestNewTranscriptWatcherActivities(t *testing.T) {
 
 func TestRawTranscriptLineSignal_ConstantValue(t *testing.T) {
 	// Verify the signal name matches what the workflow expects
-	assert.Equal(t, "raw-transcript-line", RawTranscriptLineSignal)
+	assert.Equal(t, "raw-transcript-line", types.RawTranscriptLineSignal)
 }
 
 func TestRawTranscriptEvent_PayloadConstruction(t *testing.T) {
@@ -49,23 +49,26 @@ func TestRawTranscriptEvent_PayloadConstruction(t *testing.T) {
 
 	// Simulate what the watcher produces
 	rawLine := watcher.RawLine{
-		Line:      []byte(`{"type":"tool_use","name":"Read"}`),
-		Timestamp: time.Now(),
+		Line:       []byte(`{"type":"tool_use","name":"Read"}`),
+		Timestamp:  time.Now(),
+		SourceFile: "agent-abc123.jsonl",
 	}
 
 	// Construct the event (same as activity does)
 	rawEvent := types.RawTranscriptEvent{
-		Source:    source,
-		RawLine:   json.RawMessage(rawLine.Line),
-		Timestamp: rawLine.Timestamp,
-		TaskID:    taskID,
-		ProjectID: projectID,
+		Source:     source,
+		RawLine:    json.RawMessage(rawLine.Line),
+		Timestamp:  rawLine.Timestamp,
+		TaskID:     taskID,
+		ProjectID:  projectID,
+		SourceFile: rawLine.SourceFile,
 	}
 
 	// Verify all fields are set correctly
 	assert.Equal(t, "claude", rawEvent.Source)
 	assert.Equal(t, "task-123", rawEvent.TaskID)
 	assert.Equal(t, "project-456", rawEvent.ProjectID)
+	assert.Equal(t, "agent-abc123.jsonl", rawEvent.SourceFile)
 	assert.Equal(t, rawLine.Timestamp, rawEvent.Timestamp)
 	assert.JSONEq(t, `{"type":"tool_use","name":"Read"}`, string(rawEvent.RawLine))
 }
@@ -73,11 +76,12 @@ func TestRawTranscriptEvent_PayloadConstruction(t *testing.T) {
 func TestRawTranscriptEvent_JSONSerialization(t *testing.T) {
 	// Verify the payload can be serialized/deserialized (Temporal uses JSON)
 	original := types.RawTranscriptEvent{
-		Source:    "claude",
-		RawLine:   json.RawMessage(`{"type":"assistant","content":"hello"}`),
-		Timestamp: time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
-		TaskID:    "task-abc",
-		ProjectID: "project-xyz",
+		Source:     "claude",
+		RawLine:    json.RawMessage(`{"type":"assistant","content":"hello"}`),
+		Timestamp:  time.Date(2025, 1, 15, 10, 30, 0, 0, time.UTC),
+		TaskID:     "task-abc",
+		ProjectID:  "project-xyz",
+		SourceFile: "agent-abc123.jsonl",
 	}
 
 	// Serialize
@@ -93,6 +97,7 @@ func TestRawTranscriptEvent_JSONSerialization(t *testing.T) {
 	assert.Equal(t, original.Source, decoded.Source)
 	assert.Equal(t, original.TaskID, decoded.TaskID)
 	assert.Equal(t, original.ProjectID, decoded.ProjectID)
+	assert.Equal(t, original.SourceFile, decoded.SourceFile)
 	assert.JSONEq(t, string(original.RawLine), string(decoded.RawLine))
 }
 
@@ -102,9 +107,9 @@ func TestSourceDefault_Logic(t *testing.T) {
 		input    string
 		expected string
 	}{
-		{"", "claude"},           // Empty defaults to claude
-		{"claude", "claude"},     // Explicit claude stays claude
-		{"gemini", "gemini"},     // Other sources preserved
+		{"", "claude"},       // Empty defaults to claude
+		{"claude", "claude"}, // Explicit claude stays claude
+		{"gemini", "gemini"}, // Other sources preserved
 	}
 
 	for _, tt := range tests {

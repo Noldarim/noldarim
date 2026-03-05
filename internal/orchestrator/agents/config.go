@@ -33,8 +33,7 @@ func (ac *AgentConfig) Validate() error {
 		return fmt.Errorf("prompt_template is required")
 	}
 
-	// Supported tools: claude, test
-	supportedTools := []string{"claude", "test"}
+	supportedTools := []string{"claude", "opencode", "test"}
 	isSupported := false
 	for _, tool := range supportedTools {
 		if ac.ToolName == tool {

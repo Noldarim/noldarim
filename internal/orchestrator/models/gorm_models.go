@@ -166,8 +166,11 @@ type AIActivityRecord struct {
 
 	// Classification
 	EventType    AIEventType `gorm:"type:text;index;not null" json:"event_type"`
+	Kind         string      `gorm:"type:text;index" json:"kind"`
+	Level        string      `gorm:"type:text" json:"level"`
 	IsHumanInput *bool       `gorm:"type:boolean" json:"is_human_input"` // true = human typed
 	Timestamp    time.Time   `gorm:"index;not null" json:"timestamp"`
+	Sequence     int64       `gorm:"type:integer" json:"sequence"`
 
 	// Model info
 	Model      string `gorm:"type:text" json:"model"`
@@ -189,6 +192,10 @@ type AIActivityRecord struct {
 	ToolSuccess      *bool  `gorm:"type:boolean" json:"tool_success"`
 	ToolError        string `gorm:"type:text" json:"tool_error"`
 	FilePath         string `gorm:"type:text;index" json:"file_path"` // Extracted for file ops
+	IsSidechain      *bool  `gorm:"type:boolean" json:"is_sidechain"`
+	AgentID          string `gorm:"type:text;index" json:"agent_id"`
+	ParentSessionID  string `gorm:"type:text;index" json:"parent_session_id"`
+	SourceFile       string `gorm:"type:text" json:"source_file"`
 
 	// Content
 	ContentPreview string `gorm:"type:text" json:"content_preview"` // First 500 chars
@@ -215,8 +222,11 @@ func (r *AIActivityRecord) ToParsedEventFields() map[string]interface{} {
 		"parent_uuid":         r.ParentUUID,
 		"request_id":          r.RequestID,
 		"event_type":          r.EventType,
+		"kind":                r.Kind,
+		"level":               r.Level,
 		"is_human_input":      r.IsHumanInput,
 		"timestamp":           r.Timestamp,
+		"sequence":            r.Sequence,
 		"model":               r.Model,
 		"stop_reason":         r.StopReason,
 		"input_tokens":        r.InputTokens,
@@ -230,6 +240,10 @@ func (r *AIActivityRecord) ToParsedEventFields() map[string]interface{} {
 		"tool_success":        r.ToolSuccess,
 		"tool_error":          r.ToolError,
 		"file_path":           r.FilePath,
+		"is_sidechain":        r.IsSidechain,
+		"agent_id":            r.AgentID,
+		"parent_session_id":   r.ParentSessionID,
+		"source_file":         r.SourceFile,
 		"content_preview":     r.ContentPreview,
 		"content_length":      r.ContentLength,
 	}
@@ -240,6 +254,14 @@ func (r *AIActivityRecord) ToParsedEventFields() map[string]interface{} {
 // taskID and runID come from workflow context since ParsedEvent doesn't include them.
 func NewAIActivityRecordFromParsed(parsed types.ParsedEvent, taskID, runID, stepID string) *AIActivityRecord {
 	isHuman := parsed.IsHumanInput
+
+	// Only set IsSidechain pointer when true, consistent with ToolSuccess pattern
+	var isSidechain *bool
+	if parsed.IsSidechain {
+		t := true
+		isSidechain = &t
+	}
+
 	return &AIActivityRecord{
 		EventID:           parsed.EventID,
 		SessionID:         parsed.SessionID,
@@ -250,8 +272,11 @@ func NewAIActivityRecordFromParsed(parsed types.ParsedEvent, taskID, runID, step
 		ParentUUID:        parsed.ParentUUID,
 		RequestID:         parsed.RequestID,
 		EventType:         AIEventType(parsed.EventType),
+		Kind:              string(parsed.Kind),
+		Level:             string(parsed.Level),
 		IsHumanInput:      &isHuman,
 		Timestamp:         parsed.Timestamp,
+		Sequence:          parsed.Sequence,
 		Model:             parsed.Model,
 		StopReason:        parsed.StopReason,
 		InputTokens:       parsed.InputTokens,
@@ -264,6 +289,10 @@ func NewAIActivityRecordFromParsed(parsed types.ParsedEvent, taskID, runID, step
 		ToolSuccess:       parsed.ToolSuccess,
 		ToolError:         parsed.ToolError,
 		FilePath:          parsed.FilePath,
+		IsSidechain:       isSidechain,
+		AgentID:           parsed.AgentID,
+		ParentSessionID:   parsed.ParentSessionID,
+		SourceFile:        parsed.SourceFile,
 		ContentPreview:    parsed.ContentPreview,
 		ContentLength:     parsed.ContentLength,
 		RawPayload:        string(parsed.RawPayload),

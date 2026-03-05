@@ -11,9 +11,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/rs/zerolog"
 	"github.com/noldarim/noldarim/internal/aiobs/types"
 	"github.com/noldarim/noldarim/internal/logger"
+	"github.com/rs/zerolog"
 )
 
 var (
@@ -61,6 +61,8 @@ func (a *Adapter) ParseEntry(raw types.RawEntry) ([]types.ParsedEvent, error) {
 		Timestamp:   timestamp,
 		RawPayload:  raw.Data,
 	}
+	base.IsSidechain = entry.IsSidechain
+	base.AgentID = entry.AgentID
 
 	// Extract model and usage info if present (for assistant messages)
 	if entry.Message != nil {
@@ -83,19 +85,34 @@ func (a *Adapter) ParseEntry(raw types.RawEntry) ([]types.ParsedEvent, error) {
 	}
 
 	// Route based on entry type
+	var (
+		events []types.ParsedEvent
+		err    error
+	)
 	switch entry.Type {
 	case "user":
-		return a.parseUserEntry(entry, base)
+		events, err = a.parseUserEntry(entry, base)
 	case "assistant":
-		return a.parseAssistantEntry(entry, base)
+		events, err = a.parseAssistantEntry(entry, base)
 	case "summary":
-		return a.parseSummaryEntry(entry, base)
+		events, err = a.parseSummaryEntry(entry, base)
 	case "system":
-		return a.parseSystemEntry(entry, base)
+		events, err = a.parseSystemEntry(entry, base)
 	default:
 		// Skip unknown entry types (e.g., "queue-operation", "file-history-snapshot")
 		return nil, nil
 	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range events {
+		events[i].Kind = types.KindForEvent(events[i].EventType)
+		events[i].Level = types.LevelForEvent(events[i].EventType)
+	}
+
+	return events, nil
 }
 
 // parseUserEntry handles user entries - either human prompts or tool results.
@@ -166,6 +183,25 @@ func (a *Adapter) parseAssistantEntry(entry TranscriptEntry, base types.ParsedEv
 			event.ContentPreview = truncateString(string(inputJSON), 500)
 			event.ContentLength = len(inputJSON)
 			events = append(events, event)
+
+			if item.Name == "Task" {
+				subagentEvent := base
+				subagentEvent.EventID = generateEventID()
+				subagentEvent.EventType = types.EventTypeSubagentStart
+				subagentEvent.IsHumanInput = false
+				subagentEvent.ToolName = "Task"
+
+				if agentType, ok := item.Input["subagent_type"].(string); ok {
+					subagentEvent.ContentPreview = fmt.Sprintf("Spawning sub-agent [%s]", agentType)
+				} else {
+					subagentEvent.ContentPreview = "Spawning sub-agent"
+				}
+				if prompt, ok := item.Input["prompt"].(string); ok {
+					subagentEvent.ToolInputSummary = truncateString(prompt, 200)
+				}
+
+				events = append(events, subagentEvent)
+			}
 
 		case "tool_result":
 			// Tool results in assistant entries (less common)
@@ -248,6 +284,13 @@ func (a *Adapter) parseToolUseResultField(raw json.RawMessage, base types.Parsed
 	}
 
 	// Parse as object
+	var agentProbe struct {
+		AgentID string `json:"agentId"`
+	}
+	if json.Unmarshal(raw, &agentProbe) == nil && agentProbe.AgentID != "" {
+		event.AgentID = agentProbe.AgentID
+	}
+
 	var result ToolUseResult
 	if err := json.Unmarshal(raw, &result); err != nil {
 		// Failed to parse - show raw snippet as last resort
@@ -333,10 +376,15 @@ func (a *Adapter) parseToolUseResultField(raw json.RawMessage, base types.Parsed
 func (a *Adapter) parseSummaryEntry(entry TranscriptEntry, base types.ParsedEvent) ([]types.ParsedEvent, error) {
 	event := base
 	event.EventID = generateEventID()
-	event.EventType = types.EventTypeSessionEnd
 	event.IsHumanInput = false
 	event.ContentPreview = truncateString(entry.Summary, 500)
 	event.ContentLength = len(entry.Summary)
+
+	if entry.IsSidechain {
+		event.EventType = types.EventTypeSubagentStop
+	} else {
+		event.EventType = types.EventTypeSessionEnd
+	}
 
 	return []types.ParsedEvent{event}, nil
 }

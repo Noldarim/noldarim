@@ -14,12 +14,18 @@ type AgentAdapter interface {
 
 // GetAdapter returns the appropriate adapter for the given tool name
 func GetAdapter(toolName string) (AgentAdapter, error) {
+	if runtime, ok := GetRuntime(toolName); ok {
+		return runtime, nil
+	}
+
 	switch toolName {
 	case "claude":
 		return NewClaudeAdapter(), nil
+	case "opencode":
+		return NewOpenCodeAdapter(), nil
 	case "test":
 		return NewTestAdapter(), nil
 	default:
-		return nil, fmt.Errorf("unsupported tool: %s (supported: claude, test)", toolName)
+		return nil, fmt.Errorf("unsupported tool: %s (supported: claude, opencode, test)", toolName)
 	}
 }

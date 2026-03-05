@@ -243,6 +243,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 	}
 	obsCtx := workflow.WithChildOptions(ctx, obsWorkflowOptions)
 
+	pipelineRuntimeName := "claude" // Default runtime for pipeline-level observability
 	obsWorkflowFuture := workflow.ExecuteChildWorkflow(obsCtx, AIObservabilityWorkflow, types.AIObservabilityWorkflowInput{
 		TaskID:                input.RunID, // Use RunID as TaskID for pipeline-level aggregation
 		RunID:                 input.RunID,
@@ -250,6 +251,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 		TranscriptDir:         transcriptDir,
 		ProcessTaskWorkflowID: workflow.GetInfo(ctx).WorkflowExecution.ID,
 		OrchestratorTaskQueue: input.OrchestratorTaskQueue,
+		RuntimeName:           pipelineRuntimeName,
 	})
 
 	// Wait for observability workflow to start (but not complete)
@@ -310,7 +312,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 			}).Get(ctx, nil)
 
 		// Signal observability workflow with current step ID so events are tagged correctly
-		signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", StepChangeSignal, stepDef.StepID).Get(ctx, nil)
+		signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", types.StepChangeSignal, stepDef.StepID).Get(ctx, nil)
 		if signalErr != nil {
 			logger.Warn("Failed to signal step change to observability workflow",
 				"stepID", stepDef.StepID, "error", signalErr)
@@ -531,7 +533,7 @@ func PipelineWorkflow(ctx workflow.Context, input types.PipelineWorkflowInput) (
 	output.HeadCommitSHA = currentCommit
 
 	// Clear step context on observability workflow now that all steps are done
-	signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", StepChangeSignal, "").Get(ctx, nil)
+	signalErr := workflow.SignalExternalWorkflow(ctx, obsWorkflowExecution.ID, "", types.StepChangeSignal, "").Get(ctx, nil)
 	if signalErr != nil {
 		logger.Warn("Failed to clear step context on observability workflow", "error", signalErr)
 	}

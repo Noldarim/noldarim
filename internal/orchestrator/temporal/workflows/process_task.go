@@ -125,12 +125,17 @@ func ProcessTaskWorkflow(ctx workflow.Context, input types.ProcessTaskWorkflowIn
 		transcriptDir = "/home/noldarim/.claude/projects/-workspace" // Default
 	}
 
+	runtimeName := input.RuntimeName
+	if runtimeName == "" {
+		runtimeName = "claude"
+	}
 	obsWorkflowFuture := workflow.ExecuteChildWorkflow(obsCtx, AIObservabilityWorkflow, types.AIObservabilityWorkflowInput{
 		TaskID:                input.TaskID,
 		ProjectID:             input.ProjectID,
 		TranscriptDir:         transcriptDir,
 		ProcessTaskWorkflowID: workflow.GetInfo(ctx).WorkflowExecution.ID,
 		OrchestratorTaskQueue: input.OrchestratorTaskQueue,
+		RuntimeName:           runtimeName,
 	})
 
 	// Wait for observability workflow to start (but not complete)

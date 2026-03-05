@@ -12,12 +12,12 @@ import (
 // CreateTaskWorkflowInput represents the input for CreateTask workflow
 type CreateTaskWorkflowInput struct {
 	ProjectID             string
-	TaskID                string            // Task ID (content-based hash computed by orchestrator)
+	TaskID                string // Task ID (content-based hash computed by orchestrator)
 	Title                 string
 	Description           string
-	RepositoryPath        string            // Path to the git repository
-	BaseCommitSHA         string            // Commit SHA to create worktree from
-	ClaudeConfigPath      string            // Path to the Claude config file on host
+	RepositoryPath        string                     // Path to the git repository
+	BaseCommitSHA         string                     // Commit SHA to create worktree from
+	ClaudeConfigPath      string                     // Path to the Claude config file on host
 	AgentConfig           *protocol.AgentConfigInput // Structured agent configuration
 	WorkspaceDir          string                     // Workspace directory from config
 	OrchestratorTaskQueue string                     // Task queue where orchestrator is listening (for passing to child workflows)
@@ -164,13 +164,14 @@ type ExecuteCommandActivityOutput struct {
 // ProcessTaskWorkflowInput represents the input for ProcessTask workflow
 type ProcessTaskWorkflowInput struct {
 	TaskID                string
-	TaskFilePath          string                     // Path to the task file relative to workspace
+	TaskFilePath          string // Path to the task file relative to workspace
 	ProjectID             string
 	WorkspaceDir          string
 	AgentConfig           *protocol.AgentConfigInput // Structured agent configuration
 	WorktreePath          string                     // Path to the git worktree (for git operations)
 	OrchestratorTaskQueue string                     // Task queue where orchestrator is listening (for cross-worker activities)
 	TranscriptDir         string                     // Directory where Claude writes transcript files (host path, for watcher)
+	RuntimeName           string                     // Agent runtime name (e.g., "claude", "opencode")
 }
 
 // ProcessTaskWorkflowOutput represents the output from ProcessTask workflow
@@ -264,12 +265,12 @@ type ProcessingMetadata struct {
 
 // SetupClaudeHooksActivityInput represents input for setting up Claude hooks in container
 type SetupClaudeHooksActivityInput struct {
-	ContainerID       string // Container ID to setup hooks in
-	TaskID            string // Task ID for event correlation
-	WorkspaceDir      string // Container workspace directory (default: /workspace)
-	HookScriptPath    string // Path for hook script (default: /usr/local/bin/noldarim-hook.sh)
-	EventSocketPath   string // Unix socket path for events (default: /tmp/noldarim-events.sock)
-	EnableLogging     bool   // Whether to enable additional debug logging
+	ContainerID     string // Container ID to setup hooks in
+	TaskID          string // Task ID for event correlation
+	WorkspaceDir    string // Container workspace directory (default: /workspace)
+	HookScriptPath  string // Path for hook script (default: /usr/local/bin/noldarim-hook.sh)
+	EventSocketPath string // Unix socket path for events (default: /tmp/noldarim-events.sock)
+	EnableLogging   bool   // Whether to enable additional debug logging
 }
 
 // SetupClaudeHooksActivityOutput represents output from setting up Claude hooks
@@ -312,6 +313,9 @@ type AIObservabilityWorkflowInput struct {
 	TranscriptDir         string // Directory where Claude writes transcripts (e.g., /home/noldarim/.claude/projects/-workspace)
 	ProcessTaskWorkflowID string // Workflow ID of ProcessTaskWorkflow (for signaling events)
 	OrchestratorTaskQueue string // Queue for orchestrator activities (save/publish events)
+	RuntimeName           string `json:"runtime_name,omitempty"` // Agent runtime name (e.g., "claude", "opencode"). When set, uses Observer/Parser pipeline.
+	InitialStepID         string `json:"initial_step_id,omitempty"`
+	EventsOffset          int    `json:"events_offset,omitempty"`
 }
 
 // AIObservabilityWorkflowOutput represents output from the AI observability workflow
@@ -325,9 +329,11 @@ type AIObservabilityWorkflowOutput struct {
 // WatchTranscriptActivityInput represents input for the blocking transcript watch activity
 type WatchTranscriptActivityInput struct {
 	TaskID        string // Task ID for correlation
+	RunID         string // Pipeline run ID for correlation
 	ProjectID     string // Project ID for event correlation
 	TranscriptDir string // Directory to watch for transcript files
 	Source        string // AI tool source ("claude", "gemini", etc.)
+	RuntimeName   string // Agent runtime name (e.g., "claude", "opencode"). When set, uses Observer/Parser pipeline.
 	// Note: Activity signals its parent workflow (AIObservabilityWorkflow) directly
 	// using activity.GetInfo(ctx).WorkflowExecution.ID
 }

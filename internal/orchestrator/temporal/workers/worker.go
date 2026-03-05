@@ -204,11 +204,12 @@ func (w *Worker) registerActivities() {
 	w.worker.RegisterActivity(w.eventActivities.PublishPipelineFinishedEventActivity)
 	w.worker.RegisterActivity(w.eventActivities.PublishPipelineFailedEventActivity)
 
-	// Register AI Event activities - for raw event processing on orchestrator
+	// Register AI Event activities - for event processing on orchestrator
 	// These handle save/parse/update of AI activity events from the agent
 	w.worker.RegisterActivity(w.aiEventActivities.SaveRawEventActivity)
 	w.worker.RegisterActivity(w.aiEventActivities.ParseEventActivity)
 	w.worker.RegisterActivity(w.aiEventActivities.UpdateParsedEventActivity)
+	w.worker.RegisterActivity(w.aiEventActivities.SaveCompleteEventActivity)
 
 	// Register Task File activities
 	w.worker.RegisterActivity(w.taskFileActivities.WriteTaskFileActivity)

@@ -178,6 +178,9 @@ export type AIActivityRecord = {
   run_id: string;
   step_id?: string;
   event_type: AIEventType;
+  kind?: string;      // ObsKind: "message" | "tool" | "lifecycle" | "error" | "metric"
+  level?: string;     // ObsLevel: "debug" | "info" | "warn" | "error"
+  sequence?: number;  // Monotonic ordering within session
   timestamp: string;
   tool_name?: string;
   tool_input_summary?: string;
@@ -189,6 +192,11 @@ export type AIActivityRecord = {
   cache_read_tokens?: number;
   cache_create_tokens?: number;
   raw_payload?: string;
+  // Sub-agent tracking
+  is_sidechain?: boolean;
+  agent_id?: string;
+  parent_session_id?: string;
+  source_file?: string;
 };
 
 export type AIActivityBatchEvent = {
