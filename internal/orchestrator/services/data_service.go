@@ -371,3 +371,17 @@ func (ds *DataService) SaveRunStepSnapshots(ctx context.Context, snapshots []mod
 func (ds *DataService) GetRecentSuccessfulRunsWithSteps(ctx context.Context, projectID string, baseCommitSHA string, maxRuns int) ([]*models.PipelineRun, error) {
 	return ds.db.GetRecentSuccessfulRunsWithSteps(ctx, projectID, baseCommitSHA, maxRuns)
 }
+
+// ============================================================================
+// ContainerLog Operations
+// ============================================================================
+
+// SaveContainerLog persists a container log entry.
+func (ds *DataService) SaveContainerLog(ctx context.Context, log *models.ContainerLog) error {
+	return ds.db.SaveContainerLog(ctx, log)
+}
+
+// GetContainerLogsByRun retrieves all container logs for a pipeline run.
+func (ds *DataService) GetContainerLogsByRun(ctx context.Context, runID string) ([]*models.ContainerLog, error) {
+	return ds.db.GetContainerLogsByRun(ctx, runID)
+}

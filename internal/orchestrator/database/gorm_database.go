@@ -52,6 +52,7 @@ func (db *GormDB) AutoMigrate() error {
 		&models.PipelineRun{},
 		&models.StepResult{},
 		&models.RunStepSnapshot{},
+		&models.ContainerLog{},
 	); err != nil {
 		return err
 	}
@@ -692,4 +693,27 @@ func (db *GormDB) GetRecentSuccessfulRunsWithSteps(ctx context.Context, projectI
 		return nil, err
 	}
 	return runs, nil
+}
+
+// ============================================================================
+// ContainerLog Operations
+// ============================================================================
+
+// SaveContainerLog persists a container log entry.
+func (db *GormDB) SaveContainerLog(ctx context.Context, log *models.ContainerLog) error {
+	return db.db.WithContext(ctx).Create(log).Error
+}
+
+// GetContainerLogsByRun retrieves container logs for a pipeline run (max 500 records).
+func (db *GormDB) GetContainerLogsByRun(ctx context.Context, runID string) ([]*models.ContainerLog, error) {
+	var logs []*models.ContainerLog
+	err := db.db.WithContext(ctx).
+		Where("run_id = ?", runID).
+		Order("timestamp ASC").
+		Limit(500).
+		Find(&logs).Error
+	if err != nil {
+		return nil, err
+	}
+	return logs, nil
 }

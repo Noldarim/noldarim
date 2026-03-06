@@ -13,6 +13,7 @@ import (
 
 	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/logger"
+	"github.com/noldarim/noldarim/internal/observability"
 	"github.com/noldarim/noldarim/internal/orchestrator"
 	"github.com/noldarim/noldarim/internal/protocol"
 	"github.com/noldarim/noldarim/internal/server"
@@ -33,6 +34,19 @@ func main() {
 
 	mainLog := logger.GetLogger("main")
 	mainLog.Info().Msg("Starting noldarim API server")
+
+	// Initialize OpenTelemetry tracing (no-ops when OTEL_EXPORTER_OTLP_ENDPOINT is unset)
+	tracerShutdown, err := observability.InitTracer(context.Background())
+	if err != nil {
+		mainLog.Warn().Err(err).Msg("Failed to initialize OTEL tracing, continuing without it")
+	}
+	if tracerShutdown != nil {
+		defer func() {
+			if err := tracerShutdown(context.Background()); err != nil {
+				mainLog.Error().Err(err).Msg("Error shutting down OTEL tracer")
+			}
+		}()
+	}
 
 	// This context drives the orchestrator's lifetime.
 	ctx, cancel := context.WithCancel(context.Background())

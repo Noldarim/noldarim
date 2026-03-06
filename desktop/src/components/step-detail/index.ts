@@ -6,3 +6,5 @@ export { AgentOutput } from "./AgentOutput";
 export { GitDiffView } from "./GitDiffView";
 export { ToolActivityPanel } from "./ToolActivityPanel";
 export { EventTimeline } from "./EventTimeline";
+export { AgentTreePanel } from "./AgentTreePanel";
+export { AttentionBadge } from "./AttentionBadge";

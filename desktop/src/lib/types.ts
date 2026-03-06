@@ -193,6 +193,7 @@ export type AIActivityRecord = {
   cache_create_tokens?: number;
   raw_payload?: string;
   // Sub-agent tracking
+  session_id?: string;
   is_sidechain?: boolean;
   agent_id?: string;
   parent_session_id?: string;

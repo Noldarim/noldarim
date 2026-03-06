@@ -403,6 +403,11 @@ func (s *Service) ExecContainer(ctx context.Context, containerID string, cmd []s
 	return result, nil
 }
 
+// GetContainerLogs retrieves stdout and stderr logs from a container.
+func (s *Service) GetContainerLogs(ctx context.Context, containerID string, tail string) (stdout, stderr string, err error) {
+	return s.client.GetContainerLogs(ctx, containerID, tail)
+}
+
 // Close closes the service and releases resources
 func (s *Service) Close() error {
 	return s.client.Close()

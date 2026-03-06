@@ -28,6 +28,7 @@ type dataReader interface {
 	GetPipelineRunsByProject(ctx context.Context, projectID string) ([]*models.PipelineRun, error)
 	GetPipelineRun(ctx context.Context, runID string) (*models.PipelineRun, error)
 	GetAIActivityByRunID(ctx context.Context, runID string) ([]*models.AIActivityRecord, error)
+	GetContainerLogsByRun(ctx context.Context, runID string) ([]*models.ContainerLog, error)
 }
 
 type gitManager interface {
@@ -540,6 +541,26 @@ func (h *Handlers) PromotePipeline(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, result)
+}
+
+// GetContainerLogs handles GET /api/v1/pipelines/{runId}/container-logs
+func (h *Handlers) GetContainerLogs(w http.ResponseWriter, r *http.Request) {
+	runID := strings.TrimSpace(chi.URLParam(r, "runId"))
+	if runID == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "runId is required"})
+		return
+	}
+
+	logs, err := h.data.GetContainerLogsByRun(r.Context(), runID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "Failed to load container logs", err)
+		return
+	}
+
+	writeJSON(w, http.StatusOK, protocol.ContainerLogEvent{
+		RunID: runID,
+		Logs:  logs,
+	})
 }
 
 // GetMergeQueueState handles GET /api/v1/projects/{id}/merge-queue

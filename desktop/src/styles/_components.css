@@ -464,3 +464,199 @@ select {
 .error-boundary button {
   margin-top: 0.5rem;
 }
+
+/* ── Fleet Overview Panel ── */
+.fleet-panel {
+  position: fixed;
+  bottom: var(--space-lg);
+  right: var(--space-lg);
+  width: 360px;
+  max-height: 320px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-default);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-md);
+  z-index: 50;
+  overflow: hidden;
+  font-size: 0.8rem;
+}
+
+.fleet-panel__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-sm) var(--space-md);
+  border-bottom: 1px solid var(--border-default);
+}
+
+.fleet-panel__header h4 {
+  margin: 0;
+  font-family: var(--font-display);
+  font-size: 0.85rem;
+  color: var(--text-primary);
+}
+
+.fleet-panel__active-count {
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.fleet-panel__list {
+  overflow-y: auto;
+  max-height: 260px;
+}
+
+.fleet-panel__row {
+  display: grid;
+  grid-template-columns: 1fr auto auto auto;
+  gap: var(--space-sm);
+  align-items: center;
+  padding: var(--space-xs) var(--space-md);
+  cursor: pointer;
+  transition: background var(--transition-fast);
+}
+
+.fleet-panel__row:hover {
+  background: var(--bg-surface-hover);
+}
+
+.fleet-panel__name {
+  color: var(--text-primary);
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fleet-panel__project {
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+}
+
+.fleet-panel__status {
+  font-weight: 600;
+  font-size: 0.7rem;
+  text-transform: uppercase;
+}
+
+.fleet-panel__progress {
+  color: var(--text-secondary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+.fleet-panel__tokens {
+  color: var(--text-tertiary);
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+}
+
+/* ── Agent Tree Panel ── */
+.agent-tree {
+  font-size: 0.82rem;
+}
+
+.agent-node {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: var(--space-xs) 0;
+  border-left: 2px solid transparent;
+}
+
+.agent-node--selected {
+  border-left-color: var(--accent-gold);
+  background: var(--accent-gold-soft);
+}
+
+.agent-node__toggle {
+  background: none;
+  border: none;
+  color: var(--text-tertiary);
+  cursor: pointer;
+  padding: 0;
+  font-size: 0.75rem;
+  width: 1rem;
+}
+
+.agent-node__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  background: none;
+  border: none;
+  color: var(--text-primary);
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: var(--radius-sm);
+  flex: 1;
+  text-align: left;
+}
+
+.agent-node__label:hover {
+  background: var(--bg-surface-hover);
+}
+
+.agent-node__id {
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  font-weight: 500;
+}
+
+.agent-node__status {
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.agent-node__status--active { color: var(--status-running); }
+.agent-node__status--done   { color: var(--status-success); }
+.agent-node__status--error  { color: var(--status-danger); }
+
+.agent-node__meta {
+  color: var(--text-tertiary);
+  font-size: 0.7rem;
+  margin-left: auto;
+}
+
+.agent-tree__clear {
+  display: block;
+  margin-top: var(--space-sm);
+  background: none;
+  border: 1px solid var(--border-default);
+  color: var(--text-secondary);
+  padding: var(--space-xs) var(--space-sm);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+  font-size: 0.75rem;
+}
+
+.agent-tree__clear:hover {
+  background: var(--bg-surface-hover);
+}
+
+/* ── Attention Badge ── */
+.attention-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-xs);
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.attention-badge--error {
+  color: var(--status-danger);
+  background: var(--accent-rose-soft);
+}
+
+.attention-badge--warning {
+  color: var(--status-warning);
+  background: rgba(251, 191, 36, 0.12);
+}
+
+.attention-badge--info {
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-soft);
+}

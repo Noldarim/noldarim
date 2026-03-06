@@ -74,6 +74,7 @@ func New(
 		r.Get("/pipelines/{runId}/activity", handlers.GetPipelineRunAIActivity)
 		r.Post("/pipelines/{runId}/cancel", handlers.CancelPipeline)
 		r.Post("/pipelines/{runId}/promote", handlers.PromotePipeline)
+		r.Get("/pipelines/{runId}/container-logs", handlers.GetContainerLogs)
 	})
 
 	// WebSocket

@@ -92,6 +92,11 @@ func (m *MockClient) ExecContainer(ctx context.Context, containerID string, cmd 
 	return args.Get(0).(*models.ExecResult), args.Error(1)
 }
 
+func (m *MockClient) GetContainerLogs(ctx context.Context, containerID string, tail string) (string, string, error) {
+	args := m.Called(ctx, containerID, tail)
+	return args.String(0), args.String(1), args.Error(2)
+}
+
 func (m *MockClient) Close() error {
 	args := m.Called()
 	return args.Error(0)

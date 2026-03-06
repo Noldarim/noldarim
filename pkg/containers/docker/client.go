@@ -19,6 +19,7 @@ import (
 	"github.com/docker/docker/api/types/filters"
 	"github.com/docker/docker/api/types/network"
 	"github.com/docker/docker/client"
+	"github.com/docker/docker/pkg/stdcopy"
 	"github.com/docker/go-connections/nat"
 
 	"github.com/noldarim/noldarim/pkg/containers/models"
@@ -38,6 +39,7 @@ type ClientInterface interface {
 	CopyFromContainer(ctx context.Context, containerID string, srcPath string, dstPath string) error
 	WriteToContainer(ctx context.Context, containerID string, content string, dstPath string) error
 	ExecContainer(ctx context.Context, containerID string, cmd []string, workDir string) (*models.ExecResult, error)
+	GetContainerLogs(ctx context.Context, containerID string, tail string) (string, string, error)
 	Close() error
 }
 
@@ -462,6 +464,43 @@ func (c *Client) ExecContainer(ctx context.Context, containerID string, cmd []st
 		Stdout:   stdout.String(),
 		Stderr:   stderr.String(),
 	}, nil
+}
+
+// GetContainerLogs retrieves stdout and stderr logs from a container.
+// The tail parameter limits output to the last N lines ("all" for everything).
+// Output is bounded to 10 MB per stream to prevent unbounded memory usage.
+func (c *Client) GetContainerLogs(ctx context.Context, containerID string, tail string) (string, string, error) {
+	if tail == "" {
+		tail = "all"
+	}
+
+	reader, err := c.docker.ContainerLogs(ctx, containerID, container.LogsOptions{
+		ShowStdout: true,
+		ShowStderr: true,
+		Tail:       tail,
+	})
+	if err != nil {
+		return "", "", fmt.Errorf("failed to get container logs: %w", err)
+	}
+	defer reader.Close()
+
+	const maxBytes = 10 << 20 // 10 MB per stream
+	var stdoutBuf, stderrBuf bytes.Buffer
+	if _, err := stdcopy.StdCopy(&stdoutBuf, &stderrBuf, reader); err != nil {
+		return "", "", fmt.Errorf("failed to read container logs: %w", err)
+	}
+
+	// Truncate each stream independently to enforce per-stream limits.
+	stdout := stdoutBuf.String()
+	if len(stdout) > maxBytes {
+		stdout = stdout[:maxBytes]
+	}
+	stderr := stderrBuf.String()
+	if len(stderr) > maxBytes {
+		stderr = stderr[:maxBytes]
+	}
+
+	return stdout, stderr, nil
 }
 
 // Close closes the Docker client connection

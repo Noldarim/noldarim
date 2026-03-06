@@ -9,9 +9,10 @@ import { formatDurationFromNanos, formatRunTimestamp, formatTokens, messageFromE
 import type { GraphSelection } from "../lib/graph-selection";
 import { groupToolEventsByName } from "../lib/obs-mapping";
 import { PipelineRunStatus, StepStatus, type AIActivityRecord, type AgentConfigInput, type PipelineRun, type StepResult } from "../lib/types";
-import { StepResultSummary, AgentOutput, GitDiffView, ToolActivityPanel, EventTimeline } from "./step-detail";
+import { buildAgentTree, collectAgentEventIds, findAgentNode } from "../lib/agent-tree";
+import { StepResultSummary, AgentOutput, GitDiffView, ToolActivityPanel, EventTimeline, AgentTreePanel, AttentionBadge } from "./step-detail";
 
-type TabKey = "overview" | "metrics" | "diff" | "logs" | "config";
+type TabKey = "overview" | "metrics" | "diff" | "logs" | "agents" | "config";
 
 type SnapshotStep = {
   step_id: string;
@@ -126,6 +127,7 @@ export function EdgeDetailsDrawer({
   onForkCreated
 }: Props) {
   const [activeTab, setActiveTab] = useState<TabKey>("overview");
+  const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionInfo, setActionInfo] = useState<string | null>(null);
@@ -138,6 +140,11 @@ export function EdgeDetailsDrawer({
   const pendingTimers = useRef<ReturnType<typeof setTimeout>[]>([]);
 
   const selectedStepId = selection?.kind === "step-edge" ? selection.stepId : null;
+
+  // Reset agent filter when switching steps
+  useEffect(() => {
+    setSelectedAgentId(null);
+  }, [selectedStepId]);
 
   const snapshots = useMemo(() => parseSnapshots(run), [run]);
   const selectedSnapshot = useMemo(
@@ -173,9 +180,19 @@ export function EdgeDetailsDrawer({
     return activities.filter((event) => event.step_id === selectedStepId);
   }, [activities, selectedStepId]);
 
+  const agentRoots = useMemo(() => buildAgentTree(stepEvents), [stepEvents]);
+
+  const filteredStepEvents = useMemo(() => {
+    if (!selectedAgentId) return stepEvents;
+    const node = findAgentNode(agentRoots, selectedAgentId);
+    if (!node) return stepEvents;
+    const ids = collectAgentEventIds(node);
+    return stepEvents.filter((e) => ids.has(e.event_id));
+  }, [stepEvents, selectedAgentId, agentRoots]);
+
   const toolGroups = useMemo(
-    () => groupToolEventsByName(stepEvents),
-    [stepEvents]
+    () => groupToolEventsByName(filteredStepEvents),
+    [filteredStepEvents]
   );
 
   const lastAgentOutput = useMemo(
@@ -390,6 +407,9 @@ export function EdgeDetailsDrawer({
           <button type="button" onClick={() => setActiveTab("metrics")} className={activeTab === "metrics" ? "active" : ""}>Metrics</button>
           <button type="button" onClick={() => setActiveTab("diff")} className={activeTab === "diff" ? "active" : ""}>Diff</button>
           <button type="button" onClick={() => setActiveTab("logs")} className={activeTab === "logs" ? "active" : ""}>Event Timeline</button>
+          <button type="button" onClick={() => setActiveTab("agents")} className={activeTab === "agents" ? "active" : ""}>
+            Agents <AttentionBadge activities={stepEvents} />
+          </button>
           <button type="button" onClick={() => setActiveTab("config")} className={activeTab === "config" ? "active" : ""}>Fork &amp; Replay Config</button>
         </div>
 
@@ -517,8 +537,18 @@ export function EdgeDetailsDrawer({
 
         {activeTab === "logs" && (
           <section className="drawer-section">
-            <ToolActivityPanel groups={toolGroups} events={stepEvents} />
-            <EventTimeline events={stepEvents} />
+            <ToolActivityPanel groups={toolGroups} events={filteredStepEvents} />
+            <EventTimeline events={filteredStepEvents} />
+          </section>
+        )}
+
+        {activeTab === "agents" && (
+          <section className="drawer-section">
+            <AgentTreePanel
+              roots={agentRoots}
+              onSelectAgent={(id) => setSelectedAgentId(id || null)}
+              selectedAgentId={selectedAgentId}
+            />
           </section>
         )}
 
