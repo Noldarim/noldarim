@@ -1,0 +1,39 @@
+# sandbox/docker-compose.yml
+#
+# Noldarim dev sandbox — full stack in an isolated container.
+# Requires Sysbox runtime for secure Docker-in-Docker.
+#
+# Usage:
+#   docker compose up --build
+#
+# Prerequisites:
+#   - Sysbox installed (https://github.com/nestybox/sysbox)
+#   - On macOS: Colima/Lima VM with Sysbox runtime
+
+services:
+  temporal:
+    image: temporalio/auto-setup:latest
+    ports:
+      - "7233:7233"
+      - "8233:8233"  # Temporal UI
+
+  noldarim:
+    build:
+      context: ..
+      dockerfile: sandbox/Dockerfile
+    runtime: sysbox-runc
+    depends_on:
+      - temporal
+    environment:
+      NOLDARIM_TEMPORAL_HOST_PORT: "temporal:7233"
+      NOLDARIM_TEMPORAL_NAMESPACE: "default"
+      NOLDARIM_CONTAINER_RUNTIME_PROVIDER: "local"
+      NOLDARIM_CONTAINER_DOCKER_HOST: "unix:///var/run/docker.sock"
+      NOLDARIM_SERVER_HOST: "0.0.0.0"
+    ports:
+      - "8080:8080"
+    volumes:
+      - noldarim-data:/data
+
+volumes:
+  noldarim-data:
