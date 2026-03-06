@@ -51,6 +51,7 @@ type Orchestrator struct {
 	temporalWorker    *workers.Worker
 	pipelineService   *services.PipelineService
 	runtimeProvider   runtime.Provider
+	runtimeEnv        runtime.Environment
 	config            *config.AppConfig
 }
 
@@ -117,6 +118,7 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		temporalWorker:    temporalWorker,
 		pipelineService:   pipelineService,
 		runtimeProvider:   runtimeProvider,
+		runtimeEnv:        env,
 		config:            cfg,
 	}, nil
 }
@@ -483,6 +485,18 @@ func (o *Orchestrator) Close() error {
 	if closeErr := o.gitServiceManager.Close(); closeErr != nil {
 		getLog().Error().Err(closeErr).Msg("Error closing git service manager")
 		errs = append(errs, closeErr)
+	}
+	if o.runtimeEnv != nil {
+		if closeErr := o.runtimeEnv.Destroy(context.Background()); closeErr != nil {
+			getLog().Error().Err(closeErr).Msg("Error destroying runtime environment")
+			errs = append(errs, closeErr)
+		}
+	}
+	if o.runtimeProvider != nil {
+		if closeErr := o.runtimeProvider.Close(); closeErr != nil {
+			getLog().Error().Err(closeErr).Msg("Error closing runtime provider")
+			errs = append(errs, closeErr)
+		}
 	}
 
 	close(o.internalEventChan)

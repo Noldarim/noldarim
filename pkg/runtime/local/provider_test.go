@@ -29,7 +29,7 @@ func TestLocalProvider_ImplementsProvider(t *testing.T) {
 
 func TestLocalProvider_Provision(t *testing.T) {
 	backend := &mockBackend{}
-	p := NewWithBackend("unix:///var/run/docker.sock", backend)
+	p := New("unix:///var/run/docker.sock", backend)
 
 	env, err := p.Provision(context.Background(), runtime.ProvisionOpts{
 		ID: "test-env-1",
@@ -43,7 +43,7 @@ func TestLocalProvider_Provision(t *testing.T) {
 
 func TestLocalProvider_WaitReady(t *testing.T) {
 	backend := &mockBackend{}
-	p := NewWithBackend("unix:///test.sock", backend)
+	p := New("unix:///test.sock", backend)
 
 	env, err := p.Provision(context.Background(), runtime.ProvisionOpts{ID: "ready-test"})
 	require.NoError(t, err)
@@ -55,7 +55,7 @@ func TestLocalProvider_WaitReady(t *testing.T) {
 
 func TestLocalProvider_Destroy(t *testing.T) {
 	backend := &mockBackend{}
-	p := NewWithBackend("unix:///test.sock", backend)
+	p := New("unix:///test.sock", backend)
 
 	env, err := p.Provision(context.Background(), runtime.ProvisionOpts{ID: "destroy-test"})
 	require.NoError(t, err)

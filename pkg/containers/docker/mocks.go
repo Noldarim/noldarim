@@ -13,7 +13,7 @@ import (
 	"github.com/noldarim/noldarim/pkg/containers/models"
 )
 
-// MockClient is a mock implementation of ClientInterface
+// MockClient is a mock implementation of containers.Backend
 type MockClient struct {
 	mock.Mock
 }

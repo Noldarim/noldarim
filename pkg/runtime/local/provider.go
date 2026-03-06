@@ -20,17 +20,9 @@ type Provider struct {
 
 var _ runtime.Provider = (*Provider)(nil)
 
-// New creates a LocalProvider that will create a docker.Client on Provision.
-// Pass backendOverride for testing; nil uses a real Docker client.
-func New(dockerHost string, backendOverride containers.Backend) *Provider {
-	return &Provider{
-		dockerHost: dockerHost,
-		backend:    backendOverride,
-	}
-}
-
-// NewWithBackend creates a LocalProvider with an explicit backend (for testing).
-func NewWithBackend(dockerHost string, backend containers.Backend) *Provider {
+// New creates a LocalProvider. Pass a non-nil backend for testing;
+// nil uses a real Docker client created during Provision.
+func New(dockerHost string, backend containers.Backend) *Provider {
 	return &Provider{
 		dockerHost: dockerHost,
 		backend:    backend,

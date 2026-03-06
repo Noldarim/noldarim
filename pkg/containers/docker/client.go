@@ -26,17 +26,12 @@ import (
 	"github.com/noldarim/noldarim/pkg/containers/models"
 )
 
-// ClientInterface is an alias for containers.Backend.
-// Kept for backwards compatibility during transition.
-type ClientInterface = containers.Backend
-
-// Client implements ClientInterface using real Docker
+// Client implements containers.Backend using real Docker.
 type Client struct {
 	docker *client.Client
 }
 
-// Compile-time check that Client implements ClientInterface
-var _ ClientInterface = (*Client)(nil)
+var _ containers.Backend = (*Client)(nil)
 
 // NewClient creates a new Docker client using default environment settings
 func NewClient() (*Client, error) {
