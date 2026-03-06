@@ -64,15 +64,22 @@ migrate:
 cli:
 	@go run ./cmd/noldarim $(ARGS)
 
-# Run all tests (backend + frontend)
+# Run all tests (backend + frontend), including Docker integration tests
 test:
-	@echo "Running Go tests..."
+	@echo "Running Go tests (with Docker integration)..."
 	@if [ "$(shell uname)" = "Darwin" ] && [ -S "$(HOME)/.docker/run/docker.sock" ]; then \
 		echo "Detected macOS with Docker Desktop, setting DOCKER_HOST..."; \
-		DOCKER_HOST=unix://$(HOME)/.docker/run/docker.sock go test ./...; \
+		DOCKER_HOST=unix://$(HOME)/.docker/run/docker.sock go test -tags integration_docker ./...; \
 	else \
-		go test ./...; \
+		go test -tags integration_docker ./...; \
 	fi
+	@echo "Running frontend tests..."
+	@cd desktop && bun run test
+
+# Run tests without Docker integration tests
+test-unit:
+	@echo "Running Go unit tests (no Docker required)..."
+	@go test ./...
 	@echo "Running frontend tests..."
 	@cd desktop && bun run test
 
