@@ -126,14 +126,15 @@ type WorkflowOptions struct {
 
 // ContainerConfig holds container-related configuration.
 type ContainerConfig struct {
-	DefaultImage   string            `mapstructure:"default_image"`
-	WorkspaceDir   string            `mapstructure:"workspace_dir"`
-	DockerHost     string            `mapstructure:"docker_host"`
-	NetworkMode    string            `mapstructure:"network_mode"`
-	Volumes        []VolumeConfig    `mapstructure:"volumes"`
-	Environment    map[string]string `mapstructure:"environment"`
-	ResourceLimits ResourceLimits    `mapstructure:"resource_limits"`
-	Timeouts       ContainerTimeouts `mapstructure:"timeouts"`
+	DefaultImage    string            `mapstructure:"default_image"`
+	WorkspaceDir    string            `mapstructure:"workspace_dir"`
+	DockerHost      string            `mapstructure:"docker_host"`
+	RuntimeProvider string            `mapstructure:"runtime_provider"`
+	NetworkMode     string            `mapstructure:"network_mode"`
+	Volumes         []VolumeConfig    `mapstructure:"volumes"`
+	Environment     map[string]string `mapstructure:"environment"`
+	ResourceLimits  ResourceLimits    `mapstructure:"resource_limits"`
+	Timeouts        ContainerTimeouts `mapstructure:"timeouts"`
 }
 
 // VolumeConfig defines volume mount configuration.
@@ -332,9 +333,10 @@ func defaultConfig() AppConfig {
 			},
 		},
 		Container: ContainerConfig{
-			DefaultImage: "ubuntu:22.04",
-			WorkspaceDir: "/workspace",
-			DockerHost:   "unix:///var/run/docker.sock",
+			DefaultImage:    "ubuntu:22.04",
+			WorkspaceDir:    "/workspace",
+			DockerHost:      "unix:///var/run/docker.sock",
+			RuntimeProvider: "local",
 			ResourceLimits: ResourceLimits{
 				CPUShares:  1024,
 				MemoryMB:   2048,
