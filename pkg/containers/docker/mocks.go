@@ -9,6 +9,7 @@ import (
 
 	"github.com/stretchr/testify/mock"
 
+	"github.com/noldarim/noldarim/pkg/containers"
 	"github.com/noldarim/noldarim/pkg/containers/models"
 )
 
@@ -16,6 +17,8 @@ import (
 type MockClient struct {
 	mock.Mock
 }
+
+var _ containers.Backend = (*MockClient)(nil)
 
 func (m *MockClient) CreateContainer(ctx context.Context, config models.ContainerConfig) (*models.Container, error) {
 	args := m.Called(ctx, config)
