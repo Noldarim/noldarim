@@ -225,11 +225,23 @@ If a running database was created before this change, run migration (`make migra
 - Step docs/history generated during step execution.
 - Git diff + commit captured per step.
 
-### 7.4 Containers
+### 7.4 Container Runtime
 
-- Containers are created and managed by container activities.
-- Agent worker process (`/app/agent`) is started in container.
-- Container env includes Temporal connectivity and run/task identifiers.
+Container execution is managed through a two-layer abstraction:
+
+- **RuntimeProvider** (`pkg/runtime`): provisions isolated environments for pipeline execution.
+  - `LocalProvider`: uses host Docker daemon directly (default, current behavior).
+  - Future: `SysboxProvider` (dev sandbox), `FirecrackerProvider` (production multi-tenant).
+- **ContainerBackend** (`pkg/containers.Backend`): manages containers within an environment.
+  - `docker.Client`: Docker API implementation.
+
+The orchestrator creates a `RuntimeProvider` from config, provisions an environment, and passes
+the environment's `ContainerBackend` to the container service. Activities call service methods
+unchanged.
+
+For local development, a Sysbox-based sandbox (`sandbox/`) runs the full stack in an isolated
+container with its own Docker daemon, enabling real pipeline execution without host Docker
+socket sharing.
 
 ## 8. Protocol and Event Contracts
 
