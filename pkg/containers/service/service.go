@@ -9,6 +9,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/noldarim/noldarim/pkg/containers"
 	"github.com/noldarim/noldarim/pkg/containers/docker"
 	"github.com/noldarim/noldarim/pkg/containers/events"
 	"github.com/noldarim/noldarim/pkg/containers/models"
@@ -16,7 +17,7 @@ import (
 
 // Service manages container lifecycle and publishes events
 type Service struct {
-	client     docker.ClientInterface
+	client     containers.Backend
 	publisher  events.Publisher
 	containers map[string]*models.Container
 	mutex      sync.RWMutex
@@ -42,7 +43,7 @@ func NewServiceWithDockerHost(publisher events.Publisher, dockerHost string) (*S
 }
 
 // NewServiceWithClient creates a new container service with provided client
-func NewServiceWithClient(client docker.ClientInterface, publisher events.Publisher) *Service {
+func NewServiceWithClient(client containers.Backend, publisher events.Publisher) *Service {
 	return &Service{
 		client:     client,
 		publisher:  publisher,
