@@ -15,6 +15,8 @@ import (
 	"github.com/noldarim/noldarim/internal/orchestrator/temporal/workers"
 	"github.com/noldarim/noldarim/internal/protocol"
 	"github.com/noldarim/noldarim/pkg/containers/service"
+	"github.com/noldarim/noldarim/pkg/runtime"
+	"github.com/noldarim/noldarim/pkg/runtime/providers"
 	"sync"
 	"time"
 
@@ -48,6 +50,7 @@ type Orchestrator struct {
 	temporalClient    TemporalClient
 	temporalWorker    *workers.Worker
 	pipelineService   *services.PipelineService
+	runtimeProvider   runtime.Provider
 	config            *config.AppConfig
 }
 
@@ -60,10 +63,21 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		return nil, err
 	}
 
-	containerService, err := service.NewServiceWithDockerHost(nil, cfg.Container.DockerHost)
+	runtimeProvider, err := providers.NewProvider(cfg.Container.RuntimeProvider, cfg.Container.DockerHost)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create container service: %w", err)
+		return nil, fmt.Errorf("failed to create runtime provider: %w", err)
 	}
+
+	// For LocalProvider, provision a single host environment.
+	// Future providers (sysbox, firecracker) will provision per-pipeline.
+	env, err := runtimeProvider.Provision(context.Background(), runtime.ProvisionOpts{
+		ID: "host",
+	})
+	if err != nil {
+		return nil, fmt.Errorf("failed to provision runtime environment: %w", err)
+	}
+
+	containerService := service.NewServiceWithClient(env.ContainerBackend(), nil)
 
 	gitServiceManager := services.NewGitServiceManager(cfg)
 
@@ -102,6 +116,7 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		temporalClient:    temporalClient,
 		temporalWorker:    temporalWorker,
 		pipelineService:   pipelineService,
+		runtimeProvider:   runtimeProvider,
 		config:            cfg,
 	}, nil
 }
