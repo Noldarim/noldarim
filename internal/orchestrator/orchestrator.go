@@ -7,6 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"sync"
+	"time"
+
+	"github.com/rs/zerolog"
+
 	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/logger"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
@@ -17,10 +22,6 @@ import (
 	"github.com/noldarim/noldarim/pkg/containers/service"
 	"github.com/noldarim/noldarim/pkg/runtime"
 	"github.com/noldarim/noldarim/pkg/runtime/providers"
-	"sync"
-	"time"
-
-	"github.com/rs/zerolog"
 )
 
 // TemporalClient is a type alias so that existing test code (mocks_test.go) keeps compiling.
@@ -75,8 +76,18 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		ID: "host",
 	})
 	if err != nil {
+		runtimeProvider.Close()
 		return nil, fmt.Errorf("failed to provision runtime environment: %w", err)
 	}
+
+	// Guard: clean up runtime resources if any subsequent init step fails.
+	success := false
+	defer func() {
+		if !success {
+			env.Destroy(context.Background())
+			runtimeProvider.Close()
+		}
+	}()
 
 	containerService := service.NewServiceWithClient(env.ContainerBackend(), nil)
 
@@ -106,6 +117,8 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 	}
 
 	pipelineService := services.NewPipelineService(dataService, gitServiceManager, temporalClient, cfg)
+
+	success = true
 
 	return &Orchestrator{
 		cmdChan:           cmdChan,
@@ -478,19 +491,21 @@ func (o *Orchestrator) Close() error {
 		getLog().Error().Err(closeErr).Msg("Error closing data service")
 		errs = append(errs, closeErr)
 	}
-	if closeErr := o.containerService.Close(); closeErr != nil {
-		getLog().Error().Err(closeErr).Msg("Error closing container service")
-		errs = append(errs, closeErr)
-	}
 	if closeErr := o.gitServiceManager.Close(); closeErr != nil {
 		getLog().Error().Err(closeErr).Msg("Error closing git service manager")
 		errs = append(errs, closeErr)
 	}
+	// Destroy runtime environment before closing container service,
+	// since Destroy may need the container backend to clean up.
 	if o.runtimeEnv != nil {
 		if closeErr := o.runtimeEnv.Destroy(context.Background()); closeErr != nil {
 			getLog().Error().Err(closeErr).Msg("Error destroying runtime environment")
 			errs = append(errs, closeErr)
 		}
+	}
+	if closeErr := o.containerService.Close(); closeErr != nil {
+		getLog().Error().Err(closeErr).Msg("Error closing container service")
+		errs = append(errs, closeErr)
 	}
 	if o.runtimeProvider != nil {
 		if closeErr := o.runtimeProvider.Close(); closeErr != nil {

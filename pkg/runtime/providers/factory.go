@@ -13,7 +13,7 @@ import (
 // NewProvider creates a RuntimeProvider based on the provider name.
 func NewProvider(name string, dockerHost string) (runtime.Provider, error) {
 	switch name {
-	case "local", "":
+	case runtime.ProviderLocal, "":
 		return local.New(dockerHost, nil), nil
 	default:
 		return nil, fmt.Errorf("unknown runtime provider: %q", name)

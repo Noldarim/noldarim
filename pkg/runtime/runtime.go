@@ -9,6 +9,9 @@ import (
 	"github.com/noldarim/noldarim/pkg/containers"
 )
 
+// Provider name constants.
+const ProviderLocal = "local"
+
 // Provider provisions isolated environments for pipeline execution.
 type Provider interface {
 	// Provision creates a new isolated environment.
@@ -43,19 +46,4 @@ type Environment interface {
 type ProvisionOpts struct {
 	// ID is a unique identifier for this environment (e.g., pipeline run ID).
 	ID string
-
-	// Image is the base image/rootfs for the environment.
-	Image string
-
-	// Resources defines CPU/memory limits.
-	Resources ResourceLimits
-
-	// Labels for tracking/filtering.
-	Labels map[string]string
-}
-
-// ResourceLimits defines compute resource constraints.
-type ResourceLimits struct {
-	CPUShares int64
-	MemoryMB  int64
 }

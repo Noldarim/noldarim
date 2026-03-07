@@ -29,7 +29,7 @@ func New(dockerHost string, backend containers.Backend) *Provider {
 	}
 }
 
-func (p *Provider) Name() string { return "local" }
+func (p *Provider) Name() string { return runtime.ProviderLocal }
 
 func (p *Provider) Provision(_ context.Context, opts runtime.ProvisionOpts) (runtime.Environment, error) {
 	backend := p.backend
