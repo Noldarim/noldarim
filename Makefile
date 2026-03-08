@@ -1,7 +1,8 @@
 # Makefile for noldarim (server-first runtime)
 
 .PHONY: run run-server run-tui build build-server build-tui build-cli migrate cli \
-	test test-tui firewall firewall-denied dogfood dev-process-task dev-process-task-auto-input dev-create-task \
+	test test-unit test-tui test-postgres-start test-postgres-stop \
+	firewall firewall-denied dogfood dev-process-task dev-process-task-auto-input dev-create-task \
 	build-agent dev-tui dev-tui-commitgraph dev-tui-taskstatus dev-tui-layout \
 	dev-tui-layout-lipgloss dev-tui-tokendisplay dev-tui-elapsedtimer dev-tui-stepprogress \
 	dev-tui-activityfeed dev-tui-pipelinesummary dev-tui-projectlist dev-tui-taskview \
@@ -63,6 +64,28 @@ migrate:
 # Run the CLI
 cli:
 	@go run ./cmd/noldarim $(ARGS)
+
+# Start a Postgres container for Go tests (port 5433, user/pass/db: noldarim_test)
+test-postgres-start:
+	@echo "Starting test Postgres on port 5433..."
+	@docker run -d --name noldarim-test-postgres \
+		-e POSTGRES_USER=noldarim_test \
+		-e POSTGRES_PASSWORD=noldarim_test \
+		-e POSTGRES_DB=noldarim_test \
+		-p 5433:5432 \
+		postgres:16 >/dev/null
+	@echo "Waiting for Postgres to be ready..."
+	@for i in 1 2 3 4 5 6 7 8 9 10; do \
+		docker exec noldarim-test-postgres pg_isready -U noldarim_test -q 2>/dev/null && break; \
+		if [ $$i -eq 10 ]; then echo "ERROR: Postgres failed to start"; exit 1; fi; \
+		sleep 1; \
+	done
+	@echo "Test Postgres ready on localhost:5433"
+
+# Stop the test Postgres container
+test-postgres-stop:
+	@echo "Stopping test Postgres..."
+	@docker rm -f noldarim-test-postgres 2>/dev/null || true
 
 # Run all tests (backend + frontend), including Docker integration tests
 test:

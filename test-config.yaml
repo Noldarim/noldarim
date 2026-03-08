@@ -3,10 +3,14 @@
 # Configuration for end-to-end temporal integration tests
 # This mirrors production config but with test-specific overrides
 
-# Database configuration - use in-memory for test isolation
+# Database configuration - overridden by TEST_POSTGRES_* env vars in make test
 database:
-  driver: sqlite
-  database: noldarim.db
+  host: localhost
+  port: 5433
+  username: noldarim_test
+  password: noldarim_test
+  database: noldarim_test
+  ssl_mode: disable
 
 # Logging configuration - debug level for tests with separate log file
 log:

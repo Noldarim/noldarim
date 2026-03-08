@@ -25,6 +25,20 @@ services:
       timeout: 3s
       retries: 10
 
+  noldarim-postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: noldarim
+      POSTGRES_PASSWORD: noldarim
+      POSTGRES_DB: noldarim
+    volumes:
+      - noldarim-postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U noldarim"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   temporal:
     image: temporalio/auto-setup:latest
     depends_on:
@@ -47,18 +61,16 @@ services:
     runtime: sysbox-runc
     depends_on:
       - temporal
+      - noldarim-postgres
     environment:
       NOLDARIM_TEMPORAL_HOST_PORT: "temporal:7233"
       NOLDARIM_TEMPORAL_NAMESPACE: "default"
       NOLDARIM_CONTAINER_RUNTIME_PROVIDER: "local"
       NOLDARIM_CONTAINER_DOCKER_HOST: "unix:///var/run/docker.sock"
       NOLDARIM_SERVER_HOST: "0.0.0.0"
-      NOLDARIM_DATABASE_DATABASE: "/data/noldarim.db"
     ports:
       - "8080:8080"
-    volumes:
-      - noldarim-data:/data
 
 volumes:
-  noldarim-data:
   postgres-data:
+  noldarim-postgres-data:

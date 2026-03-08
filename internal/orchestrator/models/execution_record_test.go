@@ -5,13 +5,68 @@ package models
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"reflect"
+	"strconv"
+	"sync/atomic"
 	"testing"
 	"time"
 
-	"gorm.io/driver/sqlite"
+	"github.com/noldarim/noldarim/internal/config"
+
+	gormpostgres "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var modelTestCounter atomic.Int64
+
+func testPostgresConfig() *config.DatabaseConfig {
+	port, _ := strconv.Atoi(envOr("TEST_POSTGRES_PORT", "5433"))
+	return &config.DatabaseConfig{
+		Host:     envOr("TEST_POSTGRES_HOST", "localhost"),
+		Port:     port,
+		Username: envOr("TEST_POSTGRES_USER", "noldarim_test"),
+		Password: envOr("TEST_POSTGRES_PASSWORD", "noldarim_test"),
+		Database: envOr("TEST_POSTGRES_DB", "noldarim_test"),
+		SSLMode:  "disable",
+	}
+}
+
+func envOr(key, fallback string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return fallback
+}
+
+func openTestDB(t *testing.T) *gorm.DB {
+	cfg := testPostgresConfig()
+	db, err := gorm.Open(gormpostgres.Open(cfg.GetDSN()), &gorm.Config{})
+	if err != nil {
+		t.Skipf("Test Postgres not available (run 'make test-postgres-start'): %v", err)
+	}
+
+	// Use a unique table name per test to avoid conflicts
+	tableName := fmt.Sprintf("execution_records_test_%d", modelTestCounter.Add(1))
+
+	// Migrate with custom table name
+	err = db.Table(tableName).AutoMigrate(&ExecutionRecord{})
+	if err != nil {
+		t.Fatalf("Failed to migrate schema: %v", err)
+	}
+
+	t.Cleanup(func() {
+		db.Exec(fmt.Sprintf("DROP TABLE IF EXISTS %s", tableName))
+		sqlDB, _ := db.DB()
+		if sqlDB != nil {
+			sqlDB.Close()
+		}
+	})
+
+	// Return a session scoped to this table
+	return db.Table(tableName)
+}
 
 func TestAgentConfigJSON_Scan(t *testing.T) {
 	tests := []struct {
@@ -141,18 +196,8 @@ func TestAgentConfigJSON_Value(t *testing.T) {
 }
 
 func TestExecutionRecord_DatabaseOperations(t *testing.T) {
-	// Create in-memory SQLite database for testing
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
+	db := openTestDB(t)
 
-	// Auto-migrate the schema
-	if err := db.AutoMigrate(&ExecutionRecord{}); err != nil {
-		t.Fatalf("Failed to migrate schema: %v", err)
-	}
-
-	// Test data
 	now := time.Now()
 	testRecord := ExecutionRecord{
 		ID:     "exec-001",
@@ -176,18 +221,15 @@ func TestExecutionRecord_DatabaseOperations(t *testing.T) {
 		IterationNumber: 1,
 	}
 
-	// Create record
 	if err := db.Create(&testRecord).Error; err != nil {
 		t.Fatalf("Failed to create record: %v", err)
 	}
 
-	// Read record back
 	var retrieved ExecutionRecord
 	if err := db.First(&retrieved, "id = ?", "exec-001").Error; err != nil {
 		t.Fatalf("Failed to retrieve record: %v", err)
 	}
 
-	// Verify data
 	if retrieved.ID != testRecord.ID {
 		t.Errorf("ID mismatch: got %v, want %v", retrieved.ID, testRecord.ID)
 	}
@@ -204,7 +246,6 @@ func TestExecutionRecord_DatabaseOperations(t *testing.T) {
 		t.Errorf("Success mismatch: got %v, want %v", retrieved.Success, testRecord.Success)
 	}
 
-	// Test query by task_id
 	var records []ExecutionRecord
 	if err := db.Where("task_id = ?", "task-001").Find(&records).Error; err != nil {
 		t.Fatalf("Failed to query records: %v", err)
@@ -215,18 +256,8 @@ func TestExecutionRecord_DatabaseOperations(t *testing.T) {
 }
 
 func TestExecutionRecord_IterationTracking(t *testing.T) {
-	// Create in-memory SQLite database for testing
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("Failed to open database: %v", err)
-	}
+	db := openTestDB(t)
 
-	// Auto-migrate the schema
-	if err := db.AutoMigrate(&ExecutionRecord{}); err != nil {
-		t.Fatalf("Failed to migrate schema: %v", err)
-	}
-
-	// Create parent execution
 	parent := ExecutionRecord{
 		ID:              "exec-001",
 		TaskID:          "task-001",
@@ -240,7 +271,6 @@ func TestExecutionRecord_IterationTracking(t *testing.T) {
 		t.Fatalf("Failed to create parent: %v", err)
 	}
 
-	// Create child execution
 	parentID := "exec-001"
 	child := ExecutionRecord{
 		ID:                "exec-002",
@@ -256,7 +286,6 @@ func TestExecutionRecord_IterationTracking(t *testing.T) {
 		t.Fatalf("Failed to create child: %v", err)
 	}
 
-	// Query child and verify parent relationship
 	var retrieved ExecutionRecord
 	if err := db.First(&retrieved, "id = ?", "exec-002").Error; err != nil {
 		t.Fatalf("Failed to retrieve child: %v", err)

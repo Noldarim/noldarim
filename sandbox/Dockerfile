@@ -9,7 +9,7 @@ FROM nestybox/ubuntu-jammy-systemd-docker:latest
 # Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates curl git make sqlite3 gcc libc6-dev && \
+      ca-certificates curl git make && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go (use a specific version for reproducibility)
@@ -21,9 +21,9 @@ ENV PATH="/usr/local/go/bin:${PATH}"
 # Copy source and build
 COPY . /src/noldarim
 WORKDIR /src/noldarim
-RUN CGO_ENABLED=1 go build -o /usr/local/bin/noldarim-server ./cmd/server && \
-    CGO_ENABLED=1 go build -o /usr/local/bin/noldarim-agent ./cmd/agent && \
-    CGO_ENABLED=1 go build -o /usr/local/bin/noldarim-migrate ./cmd/migrate
+RUN go build -o /usr/local/bin/noldarim-server ./cmd/server && \
+    go build -o /usr/local/bin/noldarim-agent ./cmd/agent && \
+    go build -o /usr/local/bin/noldarim-migrate ./cmd/migrate
 
 # Overwrite project root config with sandbox config (viper searches CWD first)
 COPY sandbox/config.yaml /src/noldarim/config.yaml

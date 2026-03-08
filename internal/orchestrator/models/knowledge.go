@@ -32,8 +32,7 @@ type Universal struct {
 	Definition  string        // Human readable definition/intent
 	Description string        // Extended description
 
-	// AI Searchability - Stored as JSON for SQLite compatibility for now,
-	// but intended for pgvector later.
+	// AI Searchability - Stored as JSON for now, intended for pgvector later.
 	Embedding JSONMap `gorm:"type:text"`
 
 	// Schema Validation: If this Universal is a "Task", what fields does it need?

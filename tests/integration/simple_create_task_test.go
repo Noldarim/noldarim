@@ -63,8 +63,6 @@ func TestSimpleCreateTaskFlow(t *testing.T) {
 	// Setup
 	cfg, err := config.NewConfig("../../test-config.yaml")
 	require.NoError(t, err)
-	cfg.Database.Driver = "sqlite"
-	cfg.Database.Database = ":memory:"
 
 	// Override Claude config path to use absolute path to temp file
 	cfg.Claude.ClaudeJSONHostPath = testClaudeConfigPath

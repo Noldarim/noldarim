@@ -19,10 +19,10 @@ type GitServiceFixture struct {
 	Cleanup  func()
 }
 
-// DataServiceFixture represents a data service setup with cleanup
+// DataServiceFixture represents a data service setup.
+// Cleanup is automatic via t.Cleanup — no manual cleanup needed.
 type DataServiceFixture struct {
 	Service *DataService
-	Cleanup func()
 }
 
 // WithGitService creates a git service with temporary directory
@@ -44,24 +44,14 @@ func WithGitService(t *testing.T) *GitServiceFixture {
 	}
 }
 
-// WithDataService creates a data service with in-memory database
+// WithDataService creates a data service with a fresh Postgres test database
 func WithDataService(t *testing.T) *DataServiceFixture {
-	cfg := database.WithInMemoryConfig()
-	db, err := database.NewGormDB(&cfg.Database)
-	require.NoError(t, err, "Failed to create database")
-
-	err = db.AutoMigrate()
-	require.NoError(t, err, "Failed to run migrations")
+	fixture := database.UseFreshTestDatabase(t)
 
 	// Create the data service directly with the migrated database
-	ds := &DataService{db: db}
-
-	cleanup := func() {
-		ds.Close()
-	}
+	ds := &DataService{db: fixture.DB}
 
 	return &DataServiceFixture{
 		Service: ds,
-		Cleanup: cleanup,
 	}
 }

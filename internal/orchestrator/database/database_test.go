@@ -6,10 +6,8 @@ package database
 import (
 	"context"
 	"fmt"
-	"os"
 	"testing"
 
-	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 
 	"github.com/stretchr/testify/assert"
@@ -27,32 +25,6 @@ const (
 	DefaultTaskStatus = models.TaskStatus(0)
 	TestBranch        = "main"
 )
-
-// Test helper functions
-
-// setupTestDB creates a test database with a unique name and returns config and cleanup function
-func setupTestDB(t *testing.T, name string) (*config.DatabaseConfig, func()) {
-	testDBName := fmt.Sprintf("%s.db", name)
-	cleanup := func() { os.Remove(testDBName) }
-	t.Cleanup(cleanup)
-
-	return &config.DatabaseConfig{
-		Driver:   "sqlite",
-		Database: testDBName,
-	}, cleanup
-}
-
-// createAndMigrateDB creates a database connection and runs migrations
-func createAndMigrateDB(t *testing.T, cfg *config.DatabaseConfig) *GormDB {
-	db, err := NewGormDB(cfg)
-	require.NoError(t, err, "Failed to connect to test database")
-	t.Cleanup(func() { db.Close() })
-
-	err = db.AutoMigrate()
-	require.NoError(t, err, "Failed to run migrations")
-
-	return db
-}
 
 // assertBasicProjectFields verifies common project fields are set correctly
 func assertBasicProjectFields(t *testing.T, project *models.Project, id, name, description, agentID string) {
@@ -248,28 +220,20 @@ func (b *TaskBuilder) Create(t *testing.T, db *GormDB, ctx context.Context) *mod
 
 // TestDatabaseSchemaValidation tests that GORM models match the existing database schema
 func TestDatabaseSchemaValidation(t *testing.T) {
-	cfg, _ := setupTestDB(t, "test_schema_validation")
-	db := createAndMigrateDB(t, cfg)
-
-	err := db.ValidateSchema()
+	fixture := UseFreshTestDatabase(t)
+	err := fixture.DB.ValidateSchema()
 	if err != nil {
 		t.Fatalf("Schema validation failed: %v\n\nThis means your GORM models do not match the migrated database schema.", err)
 	}
-
-	t.Log("✅ Schema validation passed - GORM models match migrated database schema")
 }
 
 // TestDatabaseConnection tests that we can connect to the database
 func TestDatabaseConnection(t *testing.T) {
-	cfg, _ := setupTestDB(t, "test_connection")
-	db := createAndMigrateDB(t, cfg)
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
-	projects, err := db.GetAllProjects(ctx)
+	projects, err := fixture.DB.GetAllProjects(ctx)
 	require.NoError(t, err, "Failed to query projects")
 	assert.NotNil(t, projects, "Projects should not be nil")
-
-	t.Logf("✅ Successfully connected to test database and retrieved %d projects", len(projects))
 }
 
 // TestGormModelStructure tests that GORM models have the expected structure
@@ -348,20 +312,15 @@ func TestModelTableNames(t *testing.T) {
 	}
 }
 
-// TestInMemoryDatabaseFixtures tests creating and using in-memory database fixtures
-func TestInMemoryDatabaseFixtures(t *testing.T) {
-	t.Run("FreshInMemoryDatabase", func(t *testing.T) {
-		fixture := UseFreshInMemoryDatabase(t)
-		defer fixture.Cleanup()
-
-		// Test that database is properly initialized
+// TestDatabaseFixtures tests creating and using database fixtures
+func TestDatabaseFixtures(t *testing.T) {
+	t.Run("FreshTestDatabase", func(t *testing.T) {
+		fixture := UseFreshTestDatabase(t)
 		assert.NotNil(t, fixture.DB)
 
-		// Test that tables exist and schema is valid
 		err := fixture.DB.ValidateSchema()
 		assert.NoError(t, err)
 
-		// Test that database is empty
 		ctx := context.Background()
 		projects, err := fixture.DB.GetAllProjects(ctx)
 		require.NoError(t, err)
@@ -369,28 +328,23 @@ func TestInMemoryDatabaseFixtures(t *testing.T) {
 	})
 
 	t.Run("MultipleDatabaseIsolation", func(t *testing.T) {
-		// Test that multiple database connections are isolated
-		// Use file-based databases to ensure proper isolation
-		cfg1, _ := setupTestDB(t, "isolation_test_1")
-		db1 := createAndMigrateDB(t, cfg1)
-
-		cfg2, _ := setupTestDB(t, "isolation_test_2")
-		db2 := createAndMigrateDB(t, cfg2)
+		fixture1 := UseFreshTestDatabase(t)
+		fixture2 := UseFreshTestDatabase(t)
 
 		ctx := context.Background()
 
 		// Create a project in db1
 		project1 := NewProjectBuilder().WithName("Test Project 1").WithDescription("Test Description 1").WithAgentID("agent-1").Build()
-		err := db1.CreateProject(ctx, project1)
+		err := fixture1.DB.CreateProject(ctx, project1)
 		require.NoError(t, err)
 
 		// Verify project exists in db1
-		projects1, err := db1.GetAllProjects(ctx)
+		projects1, err := fixture1.DB.GetAllProjects(ctx)
 		require.NoError(t, err)
 		assert.Len(t, projects1, 1)
 
 		// Verify project does not exist in db2
-		projects2, err := db2.GetAllProjects(ctx)
+		projects2, err := fixture2.DB.GetAllProjects(ctx)
 		require.NoError(t, err)
 		assert.Empty(t, projects2)
 	})
@@ -398,9 +352,7 @@ func TestInMemoryDatabaseFixtures(t *testing.T) {
 
 // TestProjectCRUD tests all project CRUD operations
 func TestProjectCRUD(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 
 	t.Run("CreateProject", func(t *testing.T) {
@@ -436,9 +388,7 @@ func TestProjectCRUD(t *testing.T) {
 
 // TestTaskCRUD tests all task CRUD operations
 func TestTaskCRUD(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 
 	// Create a project first
@@ -453,14 +403,8 @@ func TestTaskCRUD(t *testing.T) {
 	t.Run("CreateTaskWithInvalidProjectID", func(t *testing.T) {
 		task := NewTaskBuilder().WithID("test-task-invalid").WithTitle("Invalid Task").WithDescription("Should fail").WithProjectID("non-existent-project").Build()
 		err := fixture.DB.CreateTask(ctx, task)
-		// Note: GORM with SQLite doesn't enforce foreign key constraints by default
-		// This test documents the current behavior rather than expected behavior
-		// In a production setup, foreign key constraints should be enabled
-		if err != nil {
-			assert.Error(t, err, "Creating task with invalid project ID should fail")
-		} else {
-			t.Log("Warning: Foreign key constraints not enforced - task created with invalid project ID")
-		}
+		// Postgres enforces foreign key constraints
+		assert.Error(t, err, "Creating task with invalid project ID should fail")
 	})
 
 	t.Run("GetTask", func(t *testing.T) {
@@ -519,9 +463,7 @@ func TestTaskCRUD(t *testing.T) {
 
 // TestProjectTaskRelationship tests the relationship between projects and tasks
 func TestProjectTaskRelationship(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 
 	// Create projects
@@ -564,9 +506,7 @@ func TestProjectTaskRelationship(t *testing.T) {
 
 // TestAIActivityCRUD tests AI activity record CRUD operations
 func TestAIActivityCRUD(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 
 	// Create a project and task first
@@ -702,9 +642,7 @@ func TestAIActivityCRUD(t *testing.T) {
 
 // TestAIActivityIsolation tests that AI activity records are properly isolated between tasks
 func TestAIActivityIsolation(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 
 	// Create a project and two tasks
@@ -772,16 +710,13 @@ func TestAIActivityIsolation(t *testing.T) {
 
 // TestConcurrentOperations tests database operations under concurrent access
 func TestConcurrentOperations(t *testing.T) {
-	fixture := UseFreshInMemoryDatabase(t)
-	defer fixture.Cleanup()
-
+	fixture := UseFreshTestDatabase(t)
 	ctx := context.Background()
 	NewProjectBuilder().WithID("concurrent-project").WithName("Concurrent Project").WithDescription("Test concurrent operations").Create(t, fixture.DB, ctx)
 
 	t.Run("ConcurrentTaskCreation", func(t *testing.T) {
-		const numTasks = 5 // Reduced number to avoid SQLite locking issues
+		const numTasks = 10
 
-		// Create tasks concurrently
 		done := make(chan error, numTasks)
 		for i := 0; i < numTasks; i++ {
 			go func(i int) {
@@ -790,24 +725,13 @@ func TestConcurrentOperations(t *testing.T) {
 			}(i)
 		}
 
-		// Wait for all tasks to complete
-		var successCount int
 		for i := 0; i < numTasks; i++ {
 			err := <-done
-			if err == nil {
-				successCount++
-			} else {
-				t.Logf("Task creation failed (expected with SQLite concurrency): %v", err)
-			}
+			assert.NoError(t, err, "Postgres handles concurrent writes without locking issues")
 		}
 
-		// Verify that at least some tasks were created successfully
-		// SQLite may have locking issues under high concurrency
 		tasks, err := fixture.DB.GetTasksByProject(ctx, "concurrent-project")
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, len(tasks), 1, "At least one task should be created")
-		assert.LessOrEqual(t, len(tasks), numTasks, "No more than %d tasks should be created", numTasks)
-
-		t.Logf("Successfully created %d out of %d tasks concurrently", len(tasks), numTasks)
+		assert.Len(t, tasks, numTasks)
 	})
 }

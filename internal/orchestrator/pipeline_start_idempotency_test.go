@@ -25,7 +25,7 @@ import (
 func setupTestOrchestrator(t *testing.T, mockTemporalClient *MockTemporalClient) (*Orchestrator, chan protocol.Event, *services.DataService) {
 	t.Helper()
 
-	cfg := database.WithInMemoryConfig()
+	cfg := database.WithTestConfig()
 	cfg.Temporal = config.TemporalConfig{
 		HostPort:  "localhost:7233",
 		Namespace: "default",
@@ -40,7 +40,7 @@ func setupTestOrchestrator(t *testing.T, mockTemporalClient *MockTemporalClient)
 
 	db, err := database.NewGormDB(&cfg.Database)
 	if err != nil {
-		t.Fatalf("Failed to create in-memory database: %v", err)
+		t.Skipf("Test Postgres not available (run 'make test-postgres-start'): %v", err)
 	}
 	if err := db.AutoMigrate(); err != nil {
 		t.Fatalf("Failed to run migrations: %v", err)

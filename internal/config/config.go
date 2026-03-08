@@ -30,9 +30,8 @@ type AppConfig struct {
 	Pipeline    PipelineConfig    `mapstructure:"pipeline"`
 }
 
-// DatabaseConfig holds all database configuration.
+// DatabaseConfig holds PostgreSQL database configuration.
 type DatabaseConfig struct {
-	Driver   string `mapstructure:"driver"`
 	Host     string `mapstructure:"host"`
 	Port     int    `mapstructure:"port"`
 	Username string `mapstructure:"username"`
@@ -259,10 +258,11 @@ func NewConfig(configPath string) (*AppConfig, error) {
 func defaultConfig() AppConfig {
 	return AppConfig{
 		Database: DatabaseConfig{
-			Driver:   "sqlite",
-			Database: "noldarim.db",
 			Host:     "localhost",
 			Port:     5432,
+			Username: "noldarim",
+			Password: "noldarim",
+			Database: "noldarim",
 			SSLMode:  "disable",
 		},
 		Log: LogConfig{
@@ -439,8 +439,11 @@ func expandPath(path string) string {
 
 // validate checks if the configuration is valid.
 func (c *AppConfig) validate() error {
-	if c.Database.Driver == "" {
-		return errors.New("database driver is required")
+	if c.Database.Host == "" {
+		return errors.New("database host is required")
+	}
+	if c.Database.Database == "" {
+		return errors.New("database name is required")
 	}
 
 	validLogLevels := map[string]bool{
@@ -472,23 +475,8 @@ func (c *AppConfig) validate() error {
 	return nil
 }
 
-// GetDSN returns the database connection string.
+// GetDSN returns the PostgreSQL connection string.
 func (dc *DatabaseConfig) GetDSN() string {
-	switch dc.Driver {
-	case "sqlite":
-		dsn := dc.Database
-		if dsn == ":memory:" {
-			dsn = "file::memory:?cache=shared"
-		}
-		return dsn
-	case "postgres":
-		return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
-			dc.Host, dc.Port, dc.Username, dc.Password, dc.Database, dc.SSLMode)
-	case "mysql":
-		return fmt.Sprintf("%s:%s@tcp(%s:%d)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-			dc.Username, dc.Password, dc.Host, dc.Port, dc.Database)
-	default:
-		// Fallback for other drivers that might just use a connection string directly
-		return dc.Database
-	}
+	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
+		dc.Host, dc.Port, dc.Username, dc.Password, dc.Database, dc.SSLMode)
 }
