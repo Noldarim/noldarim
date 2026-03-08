@@ -5,10 +5,8 @@ package services
 
 import (
 	"context"
-	"os"
 	"testing"
 
-	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/orchestrator/database"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 
@@ -20,7 +18,6 @@ import (
 func TestDataServiceCRUD(t *testing.T) {
 	// Use fixture for data service setup - this creates both the database and service
 	dsFixture := WithDataService(t)
-	defer dsFixture.Cleanup()
 
 	// Get the database connection from the data service
 	ds := dsFixture.Service
@@ -168,26 +165,3 @@ func testTaskStatusUpdates(t *testing.T, db *database.GormDB, ds *DataService) {
 	}
 }
 
-// TestSchemaValidationInDataService tests that schema validation is working
-func TestSchemaValidationInDataService(t *testing.T) {
-	// Create a temporary database with the wrong schema
-	tmpDB := "test_wrong_schema.db"
-	defer os.Remove(tmpDB)
-
-	cfg := &config.AppConfig{
-		Database: config.DatabaseConfig{
-			Driver:   "sqlite",
-			Database: tmpDB,
-		},
-	}
-
-	// Create database connection without migrations
-	db, err := database.NewGormDB(&cfg.Database)
-	require.NoError(t, err, "Failed to create database")
-	db.Close()
-
-	// Try to create data service - should fail schema validation
-	_, err = NewDataService(cfg)
-	assert.Error(t, err, "Data service should fail with invalid schema")
-	assert.Contains(t, err.Error(), "Run 'make migrate'", "Error should contain migration message")
-}

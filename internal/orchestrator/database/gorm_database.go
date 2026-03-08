@@ -10,7 +10,7 @@ import (
 	"github.com/noldarim/noldarim/internal/config"
 	"github.com/noldarim/noldarim/internal/orchestrator/models"
 
-	"gorm.io/driver/sqlite"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 	"gorm.io/gorm/logger"
@@ -23,16 +23,7 @@ type GormDB struct {
 
 // NewGormDB creates a new GORM database connection
 func NewGormDB(cfg *config.DatabaseConfig) (*GormDB, error) {
-	var dialector gorm.Dialector
-
-	switch cfg.Driver {
-	case "sqlite":
-		dialector = sqlite.Open(cfg.GetDSN())
-	default:
-		return nil, fmt.Errorf("unsupported database driver: %s", cfg.Driver)
-	}
-
-	db, err := gorm.Open(dialector, &gorm.Config{
+	db, err := gorm.Open(postgres.Open(cfg.GetDSN()), &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent), // Reduce GORM log noise
 	})
 	if err != nil {

@@ -43,8 +43,6 @@ func TestAgentConfigExecution(t *testing.T) {
 	// Setup config
 	cfg, err := config.NewConfig("../../test-config.yaml")
 	require.NoError(t, err)
-	cfg.Database.Driver = "sqlite"
-	cfg.Database.Database = ":memory:"
 	cfg.Claude.ClaudeJSONHostPath = testClaudeConfigPath
 
 	ctx := context.Background()

@@ -7,7 +7,6 @@ import (
 	"testing"
 
 	"github.com/noldarim/noldarim/internal/config"
-	"github.com/noldarim/noldarim/internal/orchestrator/database"
 	"github.com/noldarim/noldarim/internal/protocol"
 
 	"github.com/stretchr/testify/require"
@@ -41,23 +40,4 @@ func WithOrchestrator(t *testing.T, cfg *config.AppConfig) *OrchestratorFixture 
 		EventChan:    eventChan,
 		Cleanup:      cleanup,
 	}
-}
-
-// WithInMemoryOrchestrator creates a complete orchestrator setup with in-memory database
-func WithInMemoryOrchestrator(t *testing.T) *OrchestratorFixture {
-	// Use the database fixture to create and migrate the database
-	dbFixture := database.UseFreshInMemoryDatabase(t)
-
-	cfg := database.WithInMemoryConfig()
-
-	fixture := WithOrchestrator(t, cfg)
-
-	// Wrap the cleanup to include database cleanup
-	originalCleanup := fixture.Cleanup
-	fixture.Cleanup = func() {
-		originalCleanup()
-		dbFixture.Cleanup()
-	}
-
-	return fixture
 }

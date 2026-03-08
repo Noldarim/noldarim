@@ -13,8 +13,8 @@ import (
 )
 
 func TestSaveRunStepSnapshots_UpsertAndPreload(t *testing.T) {
-	cfg, _ := setupTestDB(t, "test_run_step_snapshots")
-	db := createAndMigrateDB(t, cfg)
+	fixture := UseFreshTestDatabase(t)
+	db := fixture.DB
 	ctx := context.Background()
 
 	run := &models.PipelineRun{
@@ -71,8 +71,8 @@ func TestSaveRunStepSnapshots_UpsertAndPreload(t *testing.T) {
 }
 
 func TestSaveRunStepSnapshots_RejectsDuplicateStepIndexWithinRun(t *testing.T) {
-	cfg, _ := setupTestDB(t, "test_run_step_snapshots_unique_step_index")
-	db := createAndMigrateDB(t, cfg)
+	fixture := UseFreshTestDatabase(t)
+	db := fixture.DB
 	ctx := context.Background()
 
 	run := &models.PipelineRun{
@@ -108,8 +108,8 @@ func TestSaveRunStepSnapshots_RejectsDuplicateStepIndexWithinRun(t *testing.T) {
 }
 
 func TestValidateSchema_RequiresRunStepSnapshotsTableAndColumns(t *testing.T) {
-	cfg, _ := setupTestDB(t, "test_run_step_snapshots_schema_validation")
-	db := createAndMigrateDB(t, cfg)
+	fixture := UseFreshTestDatabase(t)
+	db := fixture.DB
 
 	// Missing table should fail validation.
 	require.NoError(t, db.db.Exec("DROP TABLE run_step_snapshots").Error)
@@ -124,7 +124,7 @@ func TestValidateSchema_RequiresRunStepSnapshotsTableAndColumns(t *testing.T) {
 			run_id TEXT NOT NULL,
 			step_id TEXT NOT NULL,
 			step_name TEXT,
-			created_at DATETIME,
+			created_at TIMESTAMP,
 			PRIMARY KEY (run_id, step_id)
 		)
 	`).Error)

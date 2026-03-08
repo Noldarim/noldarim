@@ -18,6 +18,7 @@ test-worktrees/
 
 # Worktrees
 worktrees/
+.worktrees/
 
 # Environment
 .env

@@ -484,7 +484,7 @@ func TestGitServiceManager_TimeoutHandling(t *testing.T) {
 // properly initializes a new directory as a git repository with initial commit
 func TestGitServiceManager_NewDirectoryInitialization(t *testing.T) {
 	// Load test config
-	cfg := database.WithInMemoryConfig()
+	cfg := database.WithTestConfig()
 	manager := NewGitServiceManager(cfg)
 	defer manager.Close()
 
@@ -534,7 +534,7 @@ func TestGitServiceManager_NewDirectoryInitialization(t *testing.T) {
 // GitServiceManager should create an initial commit
 func TestGitServiceManager_EmptyGitRepositoryInitialization(t *testing.T) {
 	// Load test config
-	cfg := database.WithInMemoryConfig()
+	cfg := database.WithTestConfig()
 	manager := NewGitServiceManager(cfg)
 	defer manager.Close()
 
@@ -592,7 +592,7 @@ func TestGitServiceManager_EmptyGitRepositoryInitialization(t *testing.T) {
 // does not modify repositories that already have commits
 func TestGitServiceManager_ExistingRepositoryWithCommits(t *testing.T) {
 	// Load test config
-	cfg := database.WithInMemoryConfig()
+	cfg := database.WithTestConfig()
 	manager := NewGitServiceManager(cfg)
 	defer manager.Close()
 

@@ -3,8 +3,12 @@
 # but viper nested key binding requires explicit values here.
 
 database:
-  driver: sqlite
-  database: /data/noldarim.db
+  host: noldarim-postgres
+  port: 5432
+  username: noldarim
+  password: noldarim
+  database: noldarim
+  ssl_mode: disable
 
 temporal:
   host_port: temporal:7233

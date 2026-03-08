@@ -5,15 +5,14 @@
 #
 # Nested values use underscores: NOLDARIM_CONTAINER_RESOURCE_LIMITS_MEMORY_MB
 
-# Database configuration
+# Database configuration (PostgreSQL)
 database:
-  driver: sqlite  # Options: sqlite, postgres, mysql
-  database: noldarim.db
-  # host: localhost     # For postgres/mysql
-  # port: 5432          # For postgres/mysql
-  # username: noldarim      # For postgres/mysql
-  # password: ""        # For postgres/mysql
-  # ssl_mode: disable   # For postgres
+  host: localhost
+  port: 5432
+  username: noldarim
+  password: noldarim
+  database: noldarim
+  ssl_mode: disable
 
 # Logging configuration
 log:

@@ -32,10 +32,8 @@ func TestSaveRawEventActivity_Success(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 	env := testSuite.NewTestActivityEnvironment()
 
-	// Use real DataService with in-memory DB
+	// Use real DataService with test Postgres DB
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.SaveRawEventActivity)
 
@@ -63,8 +61,6 @@ func TestSaveRawEventActivity_GeneratesUniqueEventIDs(t *testing.T) {
 	testSuite := &testsuite.WorkflowTestSuite{}
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 
 	input := types.SaveRawEventInput{
@@ -102,8 +98,6 @@ func TestSaveRawEventActivity_PreservesInputFields(t *testing.T) {
 	env := testSuite.NewTestActivityEnvironment()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.SaveRawEventActivity)
 
@@ -153,8 +147,6 @@ func TestParseEventActivity_UnknownSource(t *testing.T) {
 	env := testSuite.NewTestActivityEnvironment()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.ParseEventActivity)
 
@@ -186,8 +178,6 @@ func TestParseEventActivity_SetsContextFields(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.ParseEventActivity)
 
@@ -237,8 +227,6 @@ func TestParseEventActivity_UnrecognizedEventType(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.ParseEventActivity)
 
@@ -272,8 +260,6 @@ func TestParseEventActivity_PreservesRawPayload(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.ParseEventActivity)
 
@@ -312,8 +298,6 @@ func TestParseEventActivity_MultipleEventsFromSingleEntry(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 	env.RegisterActivity(activities.ParseEventActivity)
 
@@ -371,8 +355,6 @@ func TestSaveAndParse_StepID_PersistedThroughChain(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 
 	// A parseable Claude transcript entry
@@ -448,8 +430,6 @@ func TestSaveAndParse_EmptyStepID_GracefulDegradation(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 
 	rawPayload := json.RawMessage(`{
@@ -493,8 +473,6 @@ func TestSaveAndParse_Integration(t *testing.T) {
 	adapters.RegisterAll()
 
 	fixture := services.WithDataService(t)
-	defer fixture.Cleanup()
-
 	activities := NewAIEventActivities(fixture.Service)
 
 	// Step 1: Save raw event

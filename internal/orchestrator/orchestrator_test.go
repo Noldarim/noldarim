@@ -19,10 +19,8 @@ var testFixture *OrchestratorFixture
 
 // TestMain sets up the test suite with a shared orchestrator instance
 func TestMain(m *testing.M) {
-	// Setup: Create a single orchestrator instance for all tests
-	cfg := database.WithInMemoryConfig()
+	cfg := database.WithTestConfig()
 
-	// Add Temporal config since WithInMemoryConfig doesn't include it
 	cfg.Temporal = config.TemporalConfig{
 		HostPort:  "localhost:7233",
 		Namespace: "default",
@@ -39,13 +37,13 @@ func TestMain(m *testing.M) {
 		DefaultImage: "alpine:latest",
 	}
 
-	// Create database
+	// Create database (skip all tests if Postgres not available)
 	db, err := database.NewGormDB(&cfg.Database)
 	if err != nil {
-		stdlog.Fatalf("Failed to create in-memory database: %v", err)
+		stdlog.Printf("Test Postgres not available (run 'make test-postgres-start'): %v", err)
+		os.Exit(0)
 	}
 
-	// Run migrations
 	if err := db.AutoMigrate(); err != nil {
 		stdlog.Fatalf("Failed to run migrations: %v", err)
 	}
