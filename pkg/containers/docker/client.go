@@ -99,6 +99,7 @@ func (c *Client) CreateContainer(ctx context.Context, config models.ContainerCon
 		PortBindings: portBindings,
 		Binds:        binds,
 		NetworkMode:  container.NetworkMode(config.NetworkMode),
+		Runtime:      config.Runtime,
 		Resources: container.Resources{
 			Memory:    config.MemoryMB * 1024 * 1024, // Memory is in bytes
 			CPUShares: config.CPUShares,

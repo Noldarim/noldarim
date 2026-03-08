@@ -142,6 +142,7 @@ func (a *ContainerActivities) CreateContainerActivity(ctx context.Context, input
 		},
 		MemoryMB:  config.Container.ResourceLimits.MemoryMB,
 		CPUShares: config.Container.ResourceLimits.CPUShares,
+		Runtime:   config.Container.ContainerRuntime,
 		TaskID:    input.TaskID,
 	}
 

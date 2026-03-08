@@ -1,0 +1,31 @@
+# Sandbox-specific config overrides.
+# Environment variables (NOLDARIM_*) take precedence over this file,
+# but viper nested key binding requires explicit values here.
+
+database:
+  driver: sqlite
+  database: /data/noldarim.db
+
+temporal:
+  host_port: temporal:7233
+  namespace: default
+  task_queue: noldarim-task-queue
+
+container:
+  default_image: noldarim-agent
+  workspace_dir: /workspace
+  docker_host: unix:///var/run/docker.sock
+  runtime_provider: local
+  # container_runtime not set — inside the Sysbox sandbox, agent containers
+  # use the sandbox's own Docker daemon (already isolated from host)
+
+server:
+  host: 0.0.0.0
+  port: 8080
+
+log:
+  level: INFO
+  format: console
+  output:
+    - type: console
+      enabled: true

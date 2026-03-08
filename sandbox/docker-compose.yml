@@ -11,8 +11,31 @@
 #   - On macOS: Colima/Lima VM with Sysbox runtime
 
 services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_USER: temporal
+      POSTGRES_PASSWORD: temporal
+      POSTGRES_DB: temporal
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U temporal"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   temporal:
     image: temporalio/auto-setup:latest
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DB=postgres12
+      - DB_PORT=5432
+      - POSTGRES_USER=temporal
+      - POSTGRES_PWD=temporal
+      - POSTGRES_SEEDS=postgres
     ports:
       - "7233:7233"
       - "8233:8233"  # Temporal UI
@@ -30,6 +53,7 @@ services:
       NOLDARIM_CONTAINER_RUNTIME_PROVIDER: "local"
       NOLDARIM_CONTAINER_DOCKER_HOST: "unix:///var/run/docker.sock"
       NOLDARIM_SERVER_HOST: "0.0.0.0"
+      NOLDARIM_DATABASE_DATABASE: "/data/noldarim.db"
     ports:
       - "8080:8080"
     volumes:
@@ -37,3 +61,4 @@ services:
 
 volumes:
   noldarim-data:
+  postgres-data:

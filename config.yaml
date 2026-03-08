@@ -87,6 +87,7 @@ container:
   default_image: noldarim-agent  # Default image for task containers
   workspace_dir: /workspace    # Mount point inside containers
   docker_host: unix://${HOME}/.docker/run/docker.sock
+  # container_runtime: ""          # Docker runtime for agent containers (e.g., "sysbox-runc" for isolated Docker-in-Docker)
   network_mode: container:noldarim-net-container
   
   # Additional volumes to mount in all containers

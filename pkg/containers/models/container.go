@@ -60,6 +60,7 @@ type ContainerConfig struct {
 	MemoryMB    int64             `json:"memory_mb,omitempty"`
 	CPUShares   int64             `json:"cpu_shares,omitempty"`
 	NetworkMode string            `json:"network_mode,omitempty"`
+	Runtime     string            `json:"runtime,omitempty"` // Docker runtime (e.g., "sysbox-runc")
 }
 
 // ExecResult holds the result of executing a command in a container

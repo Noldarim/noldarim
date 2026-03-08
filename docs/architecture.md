@@ -243,6 +243,29 @@ For local development, a Sysbox-based sandbox (`sandbox/`) runs the full stack i
 container with its own Docker daemon, enabling real pipeline execution without host Docker
 socket sharing.
 
+#### Container Runtime Override
+
+The `container.container_runtime` config field sets Docker's `HostConfig.Runtime` on agent
+containers (e.g., `sysbox-runc`). This is distinct from the RuntimeProvider abstraction — it
+controls which OCI runtime Docker uses to execute agent containers, regardless of which provider
+provisioned the environment.
+
+Flow: `config.Container.ContainerRuntime` → `models.ContainerConfig.Runtime` → `docker.HostConfig.Runtime`
+
+### 7.5 Code Delivery to Agent Containers
+
+How project source code reaches agent containers depends on the deployment mode:
+
+| Mode | Mechanism | Details |
+|------|-----------|---------|
+| **Local dev** | Git worktree bind mount | Worktree created at `git.worktree_base_path/<task-id>`, mounted at `container.workspace_dir` |
+| **Sandbox** | Baked into image | `sandbox/Dockerfile` copies source; agent binary pre-built |
+| **Production (future)** | Git clone inside container | Agent clones from repo URL provided in task config |
+
+The worktree bind mount is the default path. `SetupWorkflow` creates a worktree for each task,
+and `CreateContainerActivity` mounts it into the container. Each task operates on an isolated
+branch without affecting the main working tree.
+
 ## 8. Protocol and Event Contracts
 
 `internal/protocol` defines command/event contracts.
