@@ -230,18 +230,22 @@ If a running database was created before this change, run migration (`make migra
 Container execution is managed through a two-layer abstraction:
 
 - **RuntimeProvider** (`pkg/runtime`): provisions isolated environments for pipeline execution.
-  - `LocalProvider`: uses host Docker daemon directly (default, current behavior).
-  - Future: `SysboxProvider` (dev sandbox), `FirecrackerProvider` (production multi-tenant).
+  - `LocalProvider` (`pkg/runtime/local`): uses host Docker daemon directly (default).
+  - `SysboxProvider` (`pkg/runtime/sysbox`): creates a Sysbox container with its own Docker daemon.
+    Agent containers run inside the isolated daemon. The worktree base path is bind-mounted
+    into the Sysbox container so code delivery works unchanged.
+  - Future: `FirecrackerProvider` (production multi-tenant).
 - **ContainerBackend** (`pkg/containers.Backend`): manages containers within an environment.
   - `docker.Client`: Docker API implementation.
 
-The orchestrator creates a `RuntimeProvider` from config, provisions an environment, and passes
-the environment's `ContainerBackend` to the container service. Activities call service methods
-unchanged.
+The orchestrator creates a `RuntimeProvider` from config (`container.runtime_provider`),
+provisions an environment, calls `WaitReady()` (blocks until the Docker daemon is available),
+and passes the environment's `ContainerBackend` to the container service. Activities call
+service methods unchanged — they do not know which provider is in use.
 
-For local development, a Sysbox-based sandbox (`sandbox/`) runs the full stack in an isolated
-container with its own Docker daemon, enabling real pipeline execution without host Docker
-socket sharing.
+For local development, a Sysbox-based sandbox (`sandbox/`) can run the full stack in an
+isolated container with its own Docker daemon, enabling real pipeline execution without host
+Docker socket sharing.
 
 #### Container Runtime Override
 

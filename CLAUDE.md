@@ -28,7 +28,9 @@ make migrate                # Run database migrations
 
 Server-first: Desktop client calls HTTP + WebSocket APIs on `cmd/server`. Execution flows through `internal/orchestrator` → Temporal workflows → Docker containers.
 
-**Runtime Provider abstraction** (`pkg/runtime/`): Provider → Environment → ContainerBackend chain. LocalProvider uses host Docker directly. SysboxProvider (future) provisions isolated environments with their own Docker daemon.
+**Runtime Provider abstraction** (`pkg/runtime/`): Provider → Environment → ContainerBackend chain.
+- `LocalProvider`: uses host Docker directly (default).
+- `SysboxProvider`: provisions a Sysbox container with its own Docker daemon; agent containers run inside that isolated daemon. Set `container.runtime_provider: sysbox`.
 
 **Container runtime** (`container.container_runtime` config): Sets the Docker `--runtime` flag on agent containers. Set to `sysbox-runc` for isolated Docker-in-Docker (agents can run Docker commands without accessing the host daemon).
 
@@ -69,7 +71,42 @@ Key container settings:
 - `container.default_image` — Docker image for agent containers
 - `container.container_runtime` — Docker runtime (empty = default runc, `sysbox-runc` = isolated)
 - `container.docker_host` — Docker socket path
-- `container.runtime_provider` — Runtime provider (`local` = host Docker, future: `sysbox`, `firecracker`)
+- `container.runtime_provider` — Runtime provider (`local` = host Docker, `sysbox` = isolated Docker daemon)
+- `container.sysbox_image` — Docker image for Sysbox environment containers (default: `docker:27-dind`)
+
+## Agent Images
+
+- **`noldarim-agent`** (default) — minimal image with agent binary, ca-certificates, git
+- **`noldarim-agent-full`** — Go toolchain + Docker CLI, for use with SysboxProvider
+- **`noldarim-agent-sysbox`** — per-agent Sysbox isolation: nestybox base with systemd + Docker daemon + Go toolchain. Each agent container gets its own Docker daemon. Build with: `docker build -t noldarim-agent-sysbox -f build/Dockerfile.agent-sysbox .`
+
+## Dogfooding Setup (Isolated Agent Execution)
+
+Agents run with network firewall isolation via the `noldarim-net-container`:
+
+```bash
+# 1. Start firewall container (network isolation for agents)
+make firewall
+
+# 2. Start Temporal infrastructure
+cd sandbox && docker compose up -d postgres temporal && cd ..
+
+# 3. Build the agent image
+docker build -t noldarim-agent-full -f build/Dockerfile.agent-full .
+
+# 4. Run server (agents use default network_mode: container:noldarim-net-container)
+NOLDARIM_TEMPORAL_HOST_PORT=localhost:7233 \
+NOLDARIM_CONTAINER_DEFAULT_IMAGE=noldarim-agent-full \
+make run
+```
+
+Agents can run `go test` (unit tests) with network restricted to allowlisted domains.
+Monitor blocked traffic: `make firewall-denied`
+
+**Sysbox variant** (for `make test` with Docker-dependent integration tests):
+Use `noldarim-agent-sysbox` image + `container_runtime: sysbox-runc`. Requires
+`network_mode: ""` (incompatible with shared firewall container — each Sysbox agent
+has its own network namespace). See `build/Dockerfile.agent-sysbox`.
 
 ## Conventions
 

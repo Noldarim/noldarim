@@ -131,6 +131,7 @@ type ContainerConfig struct {
 	DockerHost      string            `mapstructure:"docker_host"`
 	RuntimeProvider  string            `mapstructure:"runtime_provider"`
 	ContainerRuntime string            `mapstructure:"container_runtime"` // Docker runtime for agent containers (e.g., "sysbox-runc")
+	SysboxImage      string            `mapstructure:"sysbox_image"`      // Docker image for Sysbox environment containers (default: "docker:27-dind")
 	NetworkMode      string            `mapstructure:"network_mode"`
 	Volumes         []VolumeConfig    `mapstructure:"volumes"`
 	Environment     map[string]string `mapstructure:"environment"`

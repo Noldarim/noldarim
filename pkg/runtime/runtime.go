@@ -10,7 +10,10 @@ import (
 )
 
 // Provider name constants.
-const ProviderLocal = "local"
+const (
+	ProviderLocal  = "local"
+	ProviderSysbox = "sysbox"
+)
 
 // Provider provisions isolated environments for pipeline execution.
 type Provider interface {

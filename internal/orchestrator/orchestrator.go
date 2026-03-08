@@ -65,7 +65,12 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 		return nil, err
 	}
 
-	runtimeProvider, err := providers.NewProvider(cfg.Container.RuntimeProvider, cfg.Container.DockerHost)
+	runtimeProvider, err := providers.NewProvider(providers.ProviderConfig{
+		Name:             cfg.Container.RuntimeProvider,
+		DockerHost:       cfg.Container.DockerHost,
+		SysboxImage:      cfg.Container.SysboxImage,
+		WorktreeBasePath: cfg.Git.WorktreeBasePath,
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to create runtime provider: %w", err)
 	}
@@ -78,6 +83,12 @@ func New(cmdChan <-chan protocol.Command, eventChan chan<- protocol.Event, cfg *
 	if err != nil {
 		runtimeProvider.Close()
 		return nil, fmt.Errorf("failed to provision runtime environment: %w", err)
+	}
+
+	if err := env.WaitReady(context.Background()); err != nil {
+		env.Destroy(context.Background())
+		runtimeProvider.Close()
+		return nil, fmt.Errorf("runtime environment not ready: %w", err)
 	}
 
 	// Guard: clean up runtime resources if any subsequent init step fails.

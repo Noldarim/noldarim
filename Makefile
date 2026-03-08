@@ -1,7 +1,7 @@
 # Makefile for noldarim (server-first runtime)
 
 .PHONY: run run-server run-tui build build-server build-tui build-cli migrate cli \
-	test test-tui firewall dev-process-task dev-process-task-auto-input dev-create-task \
+	test test-tui firewall firewall-denied dogfood dev-process-task dev-process-task-auto-input dev-create-task \
 	build-agent dev-tui dev-tui-commitgraph dev-tui-taskstatus dev-tui-layout \
 	dev-tui-layout-lipgloss dev-tui-tokendisplay dev-tui-elapsedtimer dev-tui-stepprogress \
 	dev-tui-activityfeed dev-tui-pipelinesummary dev-tui-projectlist dev-tui-taskview \
@@ -104,6 +104,32 @@ firewall:
 		sh -c "/usr/local/bin/init-firewall.sh 2>&1 | tee /tmp/firewall.log; echo 'Firewall script exit code: '$$?; tail -f /dev/null"
 	@echo "Firewall container started successfully"
 	@echo "To check firewall logs: docker exec noldarim-net-container cat /tmp/firewall.log"
+	@echo "To check denied traffic: make firewall-denied"
+
+# Show firewall deny log entries (packets blocked by the firewall)
+# On Linux: reads from dmesg directly
+# On macOS/Colima: reads from the Colima VM's kernel log
+firewall-denied:
+	@if command -v colima >/dev/null 2>&1 && colima status >/dev/null 2>&1; then \
+		colima ssh -- dmesg 2>/dev/null | grep "NOLDARIM-DENY" | tail -30; \
+	else \
+		dmesg 2>/dev/null | grep "NOLDARIM-DENY" | tail -30; \
+	fi || echo "No denied traffic found (or unable to read kernel log)"
+
+# Dogfooding: start everything needed to develop Noldarim with Noldarim
+# Starts firewall, Temporal infrastructure, builds agent image, runs server
+dogfood:
+	@echo "=== Starting dogfooding environment ==="
+	@echo "--- Firewall ---"
+	@$(MAKE) firewall
+	@echo "--- Temporal infrastructure ---"
+	docker compose -f sandbox/docker-compose.yml up -d postgres temporal
+	@echo "--- Building agent image ---"
+	docker build -t noldarim-agent-full -f build/Dockerfile.agent-full .
+	@echo "--- Starting server ---"
+	NOLDARIM_TEMPORAL_HOST_PORT=localhost:7233 \
+	NOLDARIM_CONTAINER_DEFAULT_IMAGE=noldarim-agent-full \
+	go run ./cmd/server
 
 # Dev tool: Run ProcessTask workflow for development/testing
 # Usage: make dev-process-task [TASK_ID=<id>] [PROJECT_ID=<id>] [WORKSPACE_DIR=<dir>]

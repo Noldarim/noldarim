@@ -1,0 +1,61 @@
+# build/Dockerfile.agent-sysbox
+#
+# Per-agent Sysbox image: each agent container gets its own Docker daemon
+# via the Sysbox runtime. Systemd manages Docker; the agent runs as a service.
+#
+# Build from project root:
+#   docker build -t noldarim-agent-sysbox -f build/Dockerfile.agent-sysbox .
+#
+# Usage: set in config.yaml:
+#   container:
+#     default_image: noldarim-agent-sysbox
+#     container_runtime: sysbox-runc
+#     network_mode: ""   # don't share network namespace
+
+FROM nestybox/ubuntu-jammy-systemd-docker:latest
+
+# Install build dependencies
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      ca-certificates curl git make gcc libc6-dev sqlite3 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install Go
+ARG GO_VERSION=1.23.6
+ARG TARGETARCH
+RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
+ENV PATH="/usr/local/go/bin:${PATH}"
+
+# Cache Go module dependencies (speeds up `go test` in workspace)
+COPY go.mod go.sum /src/noldarim/
+WORKDIR /src/noldarim
+RUN go mod download
+
+# Build agent binary from source
+COPY . /src/noldarim/
+RUN CGO_ENABLED=1 go build -o /app/agent ./cmd/agent
+
+# Startup script
+COPY build/agent-sysbox-startup.sh /usr/local/bin/agent-startup.sh
+RUN chmod +x /usr/local/bin/agent-startup.sh
+
+# Systemd service: starts agent after Docker daemon is ready.
+# ExecStartPre dumps Docker env vars so the agent can read TASK_ID,
+# TEMPORAL_HOST_PORT, etc. set by CreateContainerActivity.
+RUN printf '[Unit]\n\
+Description=Noldarim Agent\n\
+After=docker.service\n\
+Requires=docker.service\n\
+\n\
+[Service]\n\
+Type=simple\n\
+ExecStartPre=/bin/bash -c '"'"'tr "\\0" "\\n" < /proc/1/environ > /run/noldarim.env'"'"'\n\
+EnvironmentFile=-/run/noldarim.env\n\
+ExecStart=/usr/local/bin/agent-startup.sh\n\
+Restart=no\n\
+StandardOutput=journal+console\n\
+StandardError=journal+console\n\
+\n\
+[Install]\n\
+WantedBy=multi-user.target\n' > /etc/systemd/system/noldarim-agent.service && \
+    systemctl enable noldarim-agent.service

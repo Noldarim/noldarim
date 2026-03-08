@@ -134,6 +134,14 @@ iptables -A OUTPUT -m state --state ESTABLISHED,RELATED -j ACCEPT
 # Then allow only specific outbound traffic to allowed domains
 iptables -A OUTPUT -m set --match-set allowed-domains dst -j ACCEPT
 
+# Log denied packets for observability (rate-limited to avoid flooding)
+# Logs go to kernel log — view with: dmesg | grep NOLDARIM-DENY
+# On macOS/Colima: colima ssh -- dmesg | grep NOLDARIM-DENY
+iptables -A OUTPUT -m limit --limit 10/min --limit-burst 20 \
+    -j LOG --log-prefix "NOLDARIM-DENY-OUT: " --log-level 4
+iptables -A INPUT -m limit --limit 10/min --limit-burst 20 \
+    -j LOG --log-prefix "NOLDARIM-DENY-IN: " --log-level 4
+
 echo "Firewall configuration complete"
 echo "Verifying firewall rules..."
 if curl --connect-timeout 5 https://example.com >/dev/null 2>&1; then

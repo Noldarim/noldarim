@@ -1,0 +1,43 @@
+# build/Dockerfile.agent-full
+#
+# Full agent image for dogfooding: includes the agent binary plus
+# Go toolchain, Docker CLI, and build tools so agents can run
+# `make test` and other Docker-dependent workflows.
+#
+# Build from project root:
+#   docker build -t noldarim-agent-full -f build/Dockerfile.agent-full .
+#
+# The agent container needs Docker socket access for integration tests.
+# When using SysboxProvider, mount the environment's Docker socket:
+#   /var/run/docker.sock:/var/run/docker.sock
+# This is safe — the socket belongs to the Sysbox environment's isolated
+# Docker daemon, not the host.
+
+# --- Stage 1: build the agent binary ---
+FROM golang:1.23-bookworm AS builder
+
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN CGO_ENABLED=1 go build -o /usr/local/bin/noldarim-agent ./cmd/agent
+
+# --- Stage 2: runtime with development tools ---
+FROM golang:1.23-bookworm
+
+# Install Docker CLI (official repo — client only, no daemon)
+RUN install -m 0755 -d /etc/apt/keyrings && \
+    curl -fsSL https://download.docker.com/linux/debian/gpg -o /etc/apt/keyrings/docker.asc && \
+    chmod a+r /etc/apt/keyrings/docker.asc && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.asc] https://download.docker.com/linux/debian bookworm stable" \
+      > /etc/apt/sources.list.d/docker.list
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+      docker-ce-cli \
+      make git gcc libc6-dev sqlite3 ca-certificates && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /usr/local/bin/noldarim-agent /app/agent
+
+ENTRYPOINT ["/app/agent"]

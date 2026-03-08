@@ -88,6 +88,7 @@ container:
   workspace_dir: /workspace    # Mount point inside containers
   docker_host: unix://${HOME}/.docker/run/docker.sock
   # container_runtime: ""          # Docker runtime for agent containers (e.g., "sysbox-runc" for isolated Docker-in-Docker)
+  # sysbox_image: docker:27-dind   # Docker image for Sysbox environment containers (only used with runtime_provider: sysbox)
   network_mode: container:noldarim-net-container
   
   # Additional volumes to mount in all containers
