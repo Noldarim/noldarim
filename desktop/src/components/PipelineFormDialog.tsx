@@ -45,17 +45,17 @@ export function PipelineFormDialog({ isOpen, onClose, templates, onStart, disabl
   return (
     <dialog
       ref={dialogRef}
-      className="pipeline-form-dialog"
+      className="modal-dialog pipeline-form-dialog"
       onClose={handleClose}
     >
-      <div className="pipeline-form-dialog__header">
+      <div className="modal-dialog__header pipeline-form-dialog__header">
         <h2>Start Pipeline</h2>
         {baseCommitSha && (
           <p className="muted-text">
             Base commit: <code>{baseCommitSha.slice(0, 8)}</code>
           </p>
         )}
-        <button type="button" onClick={onClose} className="pipeline-form-dialog__close">
+        <button type="button" onClick={onClose} className="modal-dialog__close">
           Close
         </button>
       </div>

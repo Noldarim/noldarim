@@ -226,6 +226,9 @@ select {
   top: var(--space-sm);
   left: var(--space-sm);
   z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
 }
 
 .floating-project-selector select {
@@ -262,38 +265,48 @@ select {
   font-size: 0.72rem;
 }
 
-.pipeline-form-dialog {
+/* ── Shared modal dialog base ── */
+.modal-dialog {
   border: 1px solid var(--border-emphasis);
   border-radius: var(--radius-xl);
   background: var(--bg-surface);
   color: var(--text-primary);
-  max-width: 560px;
   width: 90vw;
-  max-height: 85vh;
   padding: 0;
-  overflow-y: auto;
 }
 
-.pipeline-form-dialog::backdrop {
+.modal-dialog::backdrop {
   background: rgba(0, 0, 0, 0.6);
   backdrop-filter: blur(4px);
 }
 
-.pipeline-form-dialog__header {
+.modal-dialog__header {
   display: flex;
   align-items: center;
-  gap: 0.75rem;
   padding: 0.9rem;
   border-bottom: 1px solid var(--border-default);
 }
 
-.pipeline-form-dialog__header h2 {
+.modal-dialog__header h2 {
   margin: 0;
-  flex: 1;
 }
 
-.pipeline-form-dialog__close {
+.modal-dialog__close {
   flex-shrink: 0;
+}
+
+.pipeline-form-dialog {
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.pipeline-form-dialog__header {
+  gap: 0.75rem;
+}
+
+.pipeline-form-dialog__header h2 {
+  flex: 1;
 }
 
 .pipeline-form-dialog .pipeline-form {
@@ -364,6 +377,47 @@ select {
   display: grid;
   gap: 0.25rem;
   font-size: 0.78rem;
+}
+
+/* ── Add Project Dialog ── */
+.add-project-dialog {
+  max-width: 480px;
+}
+
+.add-project-dialog__header {
+  justify-content: space-between;
+}
+
+.add-project-dialog__body {
+  padding: 0.9rem;
+  display: grid;
+  gap: 0.2rem;
+}
+
+.add-project-dialog__body label {
+  font-size: 0.82rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+}
+
+.add-project-dialog__path-row {
+  display: flex;
+  gap: 0.35rem;
+}
+
+.add-project-dialog__path-row input {
+  flex: 1;
+}
+
+.add-project-dialog__path-row button {
+  flex-shrink: 0;
+}
+
+.add-project-dialog__actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
 }
 
 /* ── Status pills ── */

@@ -16,6 +16,7 @@ import { isLiveRun } from "./lib/run-phase";
 import { messageFromError } from "./lib/formatting";
 import type { AgentDefaults, PipelineDraft, Project } from "./lib/types";
 import { NoldarimGraphView } from "./components/NoldarimGraphView";
+import { AddProjectDialog } from "./components/AddProjectDialog";
 import { FloatingProjectSelector } from "./components/FloatingProjectSelector";
 import { FloatingRunStatus } from "./components/FloatingRunStatus";
 import { PipelineFormDialog } from "./components/PipelineFormDialog";
@@ -31,8 +32,10 @@ const LazyGraphSandboxPage = import.meta.env.DEV
 const serverUrlStorageKey = "noldarim.desktop.serverUrl";
 const defaultServerUrl = "http://127.0.0.1:8080";
 
+const byName = (a: Project, b: Project) => a.name.localeCompare(b.name);
+
 function normalizeProjects(projectMap: Record<string, Project>): Project[] {
-  return Object.values(projectMap).sort((a, b) => a.name.localeCompare(b.name));
+  return Object.values(projectMap).sort(byName);
 }
 
 export default function App() {
@@ -69,6 +72,7 @@ function AppMain({ isSandbox }: { isSandbox: boolean }) {
   const [selectedBaseCommitSha, setSelectedBaseCommitSha] = useState<string | null>(null);
 
   const [isPipelineDialogOpen, setIsPipelineDialogOpen] = useState(false);
+  const [isAddProjectDialogOpen, setIsAddProjectDialogOpen] = useState(false);
 
   // Zustand store selectors
   const phase = useRunStore((s) => s.phase);
@@ -121,6 +125,14 @@ function AppMain({ isSandbox }: { isSandbox: boolean }) {
       void connect();
     }
   }, [connect]);
+
+  const handleProjectCreated = useCallback(
+    (project: Project) => {
+      setProjects((prev) => [...prev, project].sort(byName));
+      setSelectedProjectId(project.id);
+    },
+    []
+  );
 
   useEffect(() => {
     setSelectedBaseCommitSha(null);
@@ -224,6 +236,7 @@ function AppMain({ isSandbox }: { isSandbox: boolean }) {
           projects={projects}
           selectedProjectId={selectedProjectId}
           onSelectProject={setSelectedProjectId}
+          onAddProject={() => setIsAddProjectDialogOpen(true)}
           disabled={runLocked}
         />
 
@@ -242,6 +255,13 @@ function AppMain({ isSandbox }: { isSandbox: boolean }) {
           onStart={onStart}
           disabled={isConnecting || !selectedProjectId || !agentDefaults || runLocked}
           baseCommitSha={selectedBaseCommitSha}
+        />
+
+        <AddProjectDialog
+          isOpen={isAddProjectDialogOpen}
+          onClose={() => setIsAddProjectDialogOpen(false)}
+          serverUrl={serverUrl}
+          onProjectCreated={handleProjectCreated}
         />
 
         {import.meta.env.DEV && (

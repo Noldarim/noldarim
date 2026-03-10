@@ -12,6 +12,7 @@ import type {
   PipelineRun,
   PipelineRunResult,
   PipelineRunsLoadedEvent,
+  Project,
   ProjectsLoadedEvent,
   ServerConfig,
   StartPipelineRequest
@@ -25,6 +26,7 @@ import {
   PipelineRunResultSchema,
   PipelineRunSchema,
   PipelineRunsLoadedEventSchema,
+  ProjectSchema,
   ProjectsLoadedEventSchema,
   ServerConfigSchema
 } from "./schemas";
@@ -142,4 +144,14 @@ export async function promotePipeline(baseUrl: string, runId: string): Promise<P
 
 export async function getMergeQueueState(baseUrl: string, projectId: string, init?: RequestInit): Promise<MergeQueueState> {
   return requestJson(baseUrl, `/api/v1/projects/${encodeURIComponent(projectId)}/merge-queue`, MergeQueueStateSchema, init);
+}
+
+export async function createProject(
+  baseUrl: string,
+  payload: { name: string; description: string; repository_path: string }
+): Promise<Project> {
+  return requestJson(baseUrl, "/api/v1/projects", ProjectSchema, {
+    method: "POST",
+    body: JSON.stringify(payload)
+  });
 }

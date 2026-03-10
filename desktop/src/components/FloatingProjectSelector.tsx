@@ -7,10 +7,11 @@ type Props = {
   projects: Project[];
   selectedProjectId: string;
   onSelectProject: (id: string) => void;
+  onAddProject: () => void;
   disabled?: boolean;
 };
 
-export function FloatingProjectSelector({ projects, selectedProjectId, onSelectProject, disabled }: Props) {
+export function FloatingProjectSelector({ projects, selectedProjectId, onSelectProject, onAddProject, disabled }: Props) {
   return (
     <div className="floating-project-selector">
       <select
@@ -25,6 +26,9 @@ export function FloatingProjectSelector({ projects, selectedProjectId, onSelectP
           </option>
         ))}
       </select>
+      <button type="button" onClick={onAddProject} disabled={disabled} title="Add project">
+        +
+      </button>
     </div>
   );
 }
