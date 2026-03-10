@@ -1,5 +1,5 @@
 # Build stage
-FROM golang:1.25 AS builder
+FROM golang:1.26 AS builder
 
 ARG GIT_DELTA_VERSION=0.18.2
 
@@ -21,7 +21,7 @@ COPY . .
 RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o agent ./cmd/agent
 
 # Runtime stage
-FROM golang:1.25
+FROM golang:1.26
 
 ARG TZ
 ENV TZ="$TZ"

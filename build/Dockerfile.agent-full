@@ -14,16 +14,16 @@
 # Docker daemon, not the host.
 
 # --- Stage 1: build the agent binary ---
-FROM golang:1.23-bookworm AS builder
+FROM golang:1.26-bookworm AS builder
 
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=1 go build -o /usr/local/bin/noldarim-agent ./cmd/agent
+RUN go build -o /usr/local/bin/noldarim-agent ./cmd/agent
 
 # --- Stage 2: runtime with development tools ---
-FROM golang:1.23-bookworm
+FROM golang:1.26-bookworm
 
 # Install Docker CLI (official repo — client only, no daemon)
 RUN install -m 0755 -d /etc/apt/keyrings && \
@@ -35,7 +35,7 @@ RUN install -m 0755 -d /etc/apt/keyrings && \
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
       docker-ce-cli \
-      make git gcc libc6-dev sqlite3 ca-certificates && \
+      make git ca-certificates && \
     rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder /usr/local/bin/noldarim-agent /app/agent

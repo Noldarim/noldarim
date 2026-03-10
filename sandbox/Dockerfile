@@ -13,7 +13,7 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go (use a specific version for reproducibility)
-ARG GO_VERSION=1.23.6
+ARG GO_VERSION=1.26
 ARG TARGETARCH
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"

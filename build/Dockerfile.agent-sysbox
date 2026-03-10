@@ -17,11 +17,11 @@ FROM nestybox/ubuntu-jammy-systemd-docker:latest
 # Install build dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-      ca-certificates curl git make gcc libc6-dev sqlite3 && \
+      ca-certificates curl git make && \
     rm -rf /var/lib/apt/lists/*
 
 # Install Go
-ARG GO_VERSION=1.23.6
+ARG GO_VERSION=1.26
 ARG TARGETARCH
 RUN curl -fsSL "https://go.dev/dl/go${GO_VERSION}.linux-${TARGETARCH}.tar.gz" | tar -C /usr/local -xz
 ENV PATH="/usr/local/go/bin:${PATH}"
@@ -33,7 +33,7 @@ RUN go mod download
 
 # Build agent binary from source
 COPY . /src/noldarim/
-RUN CGO_ENABLED=1 go build -o /app/agent ./cmd/agent
+RUN go build -o /app/agent ./cmd/agent
 
 # Startup script
 COPY build/agent-sysbox-startup.sh /usr/local/bin/agent-startup.sh

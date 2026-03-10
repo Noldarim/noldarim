@@ -145,8 +145,10 @@ dogfood:
 	@echo "=== Starting dogfooding environment ==="
 	@echo "--- Firewall ---"
 	@$(MAKE) firewall
-	@echo "--- Temporal infrastructure ---"
-	docker compose -f sandbox/docker-compose.yml up -d postgres temporal
+	@echo "--- Infrastructure (Postgres + Temporal) ---"
+	docker compose -f sandbox/docker-compose.yml up -d postgres noldarim-postgres temporal
+	@echo "--- Running migrations ---"
+	go run ./cmd/migrate
 	@echo "--- Building agent image ---"
 	docker build -t noldarim-agent-full -f build/Dockerfile.agent-full .
 	@echo "--- Starting server ---"
