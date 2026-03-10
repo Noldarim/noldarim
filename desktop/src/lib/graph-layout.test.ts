@@ -181,9 +181,9 @@ describe("collectCommitShas", () => {
     expect(result).not.toContain("c3");
   });
 
-  it("keeps only head commit when no runs exist", () => {
+  it("returns empty when no runs exist (main lane handles display)", () => {
     const result = collectCommitShas([], [makeCommit("c1"), makeCommit("c2")], new Set());
-    expect(result).toEqual(["c1"]);
+    expect(result).toEqual([]);
   });
 
   it("does not include intermediate step commits (they appear on expansion)", () => {
@@ -634,15 +634,14 @@ describe("buildProjectGraph (edge-centric)", () => {
     expect(edges).toHaveLength(0);
   });
 
-  it("renders only head commit when no runs exist", () => {
+  it("returns empty graph when no runs exist and no mainCommits (main lane handles display)", () => {
     const { nodes, edges } = buildProjectGraph(
       makeInput({
         commits: [makeCommit("c1"), makeCommit("c2"), makeCommit("c3"), makeCommit("c4")]
       })
     );
 
-    expect(nodes.filter((n) => n.type === "commit")).toHaveLength(1);
-    expect(nodes[0].id).toBe("commit-c1");
+    expect(nodes).toHaveLength(0);
     expect(edges).toHaveLength(0);
   });
 
@@ -1864,6 +1863,77 @@ describe("buildProjectGraph — realistic DB scenarios", () => {
       // Edge from source to ghost
       const runEdge = edges.find(e => e.id === "run-edge-p2");
       expect(runEdge).toBeDefined();
+    });
+  });
+
+  describe("main lane deduplication", () => {
+    it("does not create both commit-SHA and main-SHA nodes for a shared start commit", () => {
+      const run = makeRun({
+        id: "run-1",
+        start_commit_sha: "aaa",
+        base_commit_sha: "aaa",
+        head_commit_sha: "bbb",
+        step_results: [
+          makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "run-1", commit_sha: "bbb" })
+        ]
+      });
+
+      const { nodes } = buildProjectGraph(makeInput({
+        runs: [run],
+        commits: [makeCommit("aaa"), makeCommit("bbb")],
+        mainCommits: [makeCommit("aaa")]
+      }));
+
+      // The start commit should appear exactly once — as the main lane node
+      const mainNode = nodes.find(n => n.id === "main-aaa");
+      const regularNode = nodes.find(n => n.id === "commit-aaa");
+      expect(mainNode).toBeDefined();
+      expect(regularNode).toBeUndefined();
+    });
+
+    it("redirects pipeline edges to main lane node when start commit is deduplicated", () => {
+      const run = makeRun({
+        id: "run-1",
+        start_commit_sha: "aaa",
+        base_commit_sha: "aaa",
+        head_commit_sha: "bbb",
+        step_results: [
+          makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "run-1", commit_sha: "bbb" })
+        ]
+      });
+
+      const { edges } = buildProjectGraph(makeInput({
+        runs: [run],
+        commits: [makeCommit("aaa"), makeCommit("bbb")],
+        mainCommits: [makeCommit("aaa")]
+      }));
+
+      // The connector edge from start commit to first patch node should reference main-aaa
+      const connectorEdge = edges.find(e => e.id === "connector-run-1-s1-pre");
+      expect(connectorEdge).toBeDefined();
+      expect(connectorEdge!.source).toBe("main-aaa");
+    });
+
+    it("removes self-loop fork edges after deduplication", () => {
+      const run = makeRun({
+        id: "run-1",
+        start_commit_sha: "aaa",
+        base_commit_sha: "aaa",
+        head_commit_sha: "bbb",
+        step_results: [
+          makeStepResult({ step_id: "s1", step_index: 0, pipeline_run_id: "run-1", commit_sha: "bbb" })
+        ]
+      });
+
+      const { edges } = buildProjectGraph(makeInput({
+        runs: [run],
+        commits: [makeCommit("aaa"), makeCommit("bbb")],
+        mainCommits: [makeCommit("aaa")]
+      }));
+
+      // No fork edge from main-aaa → main-aaa (would be self-loop)
+      const forkEdge = edges.find(e => e.id === "main-fork-aaa");
+      expect(forkEdge).toBeUndefined();
     });
   });
 });

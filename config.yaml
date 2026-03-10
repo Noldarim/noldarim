@@ -32,7 +32,7 @@ log:
         max_age_days: 30      # Delete logs older than this
         compress: true        # Compress rotated files
     - type: console
-      enabled: false  # Disabled by default to prevent TUI corruption
+      enabled: true
   
   # Per-package log levels
   levels:

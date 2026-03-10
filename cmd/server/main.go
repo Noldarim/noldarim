@@ -34,6 +34,12 @@ func main() {
 
 	mainLog := logger.GetLogger("main")
 	mainLog.Info().Msg("Starting noldarim API server")
+	mainLog.Info().
+		Str("server", fmt.Sprintf("%s:%d", cfg.Server.Host, cfg.Server.Port)).
+		Str("database", fmt.Sprintf("%s:%d/%s (user: %s, ssl: %s)", cfg.Database.Host, cfg.Database.Port, cfg.Database.Database, cfg.Database.Username, cfg.Database.SSLMode)).
+		Str("temporal", fmt.Sprintf("%s (ns: %s, queue: %s)", cfg.Temporal.HostPort, cfg.Temporal.Namespace, cfg.Temporal.TaskQueue)).
+		Str("runtime", cfg.Container.RuntimeProvider).
+		Msg("Configuration")
 
 	// Initialize OpenTelemetry tracing (no-ops when OTEL_EXPORTER_OTLP_ENDPOINT is unset)
 	tracerShutdown, err := observability.InitTracer(context.Background())

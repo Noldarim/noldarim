@@ -146,7 +146,7 @@ dogfood:
 	@echo "--- Firewall ---"
 	@$(MAKE) firewall
 	@echo "--- Infrastructure (Postgres + Temporal) ---"
-	docker compose -f sandbox/docker-compose.yml up -d postgres noldarim-postgres temporal
+	docker compose -f sandbox/docker-compose.yml up -d postgres noldarim-postgres temporal temporal-ui
 	@echo "--- Running migrations ---"
 	go run ./cmd/migrate
 	@echo "--- Building agent image ---"

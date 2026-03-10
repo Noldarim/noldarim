@@ -366,11 +366,9 @@ export function collectCommitShas(
     }
   }
 
-  // Filter out git-only orphans; if no runs exist, keep only the head commit
+  // Filter out git-only orphans; if no runs exist the main lane handles display
   if (dagCommits.size > 0) {
     return commitOrder.filter((sha) => dagCommits.has(sha));
-  } else if (commitOrder.length > 0) {
-    return [commitOrder[0]];
   }
   return [];
 }
@@ -1604,7 +1602,7 @@ export function buildProjectGraph(input: GraphInput): { nodes: Node[]; edges: Ed
 
   const commitOrder = collectCommitShas(runsSorted, commits, dag.dagCommits);
 
-  if (commitOrder.length === 0 && runs.length === 0) {
+  if (commitOrder.length === 0 && runs.length === 0 && mainCommits.length === 0) {
     return { nodes: [], edges: [] };
   }
 
@@ -1670,7 +1668,7 @@ export function buildProjectGraph(input: GraphInput): { nodes: Node[]; edges: Ed
     hiddenHeadShas
   );
 
-  // Main branch lane — purely additive, no existing layout is modified
+  // Main branch lane
   if (mainCommits.length > 0) {
     const { mainNodes, mainEdges } = buildMainLane(
       mainCommits,
@@ -1679,8 +1677,44 @@ export function buildProjectGraph(input: GraphInput): { nodes: Node[]; edges: Ed
       commitBySha,
       selectedBaseCommitSha
     );
+
+    // Deduplicate: commits that appear in both the main lane and the pipeline
+    // graph would render as two overlapping nodes. Keep only the main lane node
+    // and redirect existing edges to it.
+    const mainLaneShas = new Set(mainCommits.map(c => c.Hash));
+    const remap = new Map<string, string>();
+    for (const sha of mainLaneShas) {
+      if (commitBySha.has(sha)) {
+        remap.set(`commit-${sha}`, `main-${sha}`);
+      }
+    }
+
+    if (remap.size > 0) {
+      // Remove regular commit nodes replaced by main lane nodes
+      const removed = new Set(remap.keys());
+      for (let i = nodes.length - 1; i >= 0; i--) {
+        if (removed.has(nodes[i].id)) nodes.splice(i, 1);
+      }
+
+      // Redirect existing edge references
+      for (const edge of edges) {
+        const src = remap.get(edge.source);
+        if (src) edge.source = src;
+        const tgt = remap.get(edge.target);
+        if (tgt) edge.target = tgt;
+      }
+
+      // Add main lane edges, dropping fork edges that became self-loops
+      for (const edge of mainEdges) {
+        const src = remap.get(edge.source) ?? edge.source;
+        const tgt = remap.get(edge.target) ?? edge.target;
+        if (src !== tgt) edges.push(edge);
+      }
+    } else {
+      edges.push(...mainEdges);
+    }
+
     nodes.push(...mainNodes);
-    edges.push(...mainEdges);
   }
 
   return { nodes, edges };

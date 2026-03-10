@@ -82,7 +82,12 @@ beforeEach(() => {
   mockedGetMainBranchCommits.mockResolvedValue({
     ProjectID: "proj-1",
     RepositoryPath: "/tmp/repo",
-    Commits: []
+    Commits: [
+      { Hash: "aaa111", Message: "a", Author: "bot", Parents: [] },
+      { Hash: "bbb222", Message: "b", Author: "bot", Parents: [] },
+      { Hash: "ccc333", Message: "c", Author: "bot", Parents: [] },
+      { Hash: "ddd444", Message: "d", Author: "bot", Parents: [] }
+    ]
   });
   mockedGetServerConfig.mockResolvedValue({ default_branch: "main" });
   useRunStore.getState().reset();
@@ -196,6 +201,15 @@ describe("NoldarimGraphView", () => {
         ProjectID: "proj-2",
         RepositoryPath: "/tmp/repo-2",
         Commits: [{ Hash: "new22222", Message: "new", Author: "bot", Parents: [] }]
+      });
+    });
+    mockedGetMainBranchCommits.mockImplementation((_, projectId) => {
+      return Promise.resolve({
+        ProjectID: projectId as string,
+        RepositoryPath: projectId === "proj-1" ? "/tmp/repo-1" : "/tmp/repo-2",
+        Commits: projectId === "proj-2"
+          ? [{ Hash: "new22222", Message: "new", Author: "bot", Parents: [] }]
+          : [{ Hash: "aaa111", Message: "a", Author: "bot", Parents: [] }]
       });
     });
 

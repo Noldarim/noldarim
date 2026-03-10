@@ -283,7 +283,7 @@ func defaultConfig() AppConfig {
 				},
 				{
 					Type:    "console",
-					Enabled: false, // Disabled by default for TUI
+					Enabled: true,
 				},
 			},
 			Levels: map[string]string{

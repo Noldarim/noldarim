@@ -7,10 +7,12 @@ import (
 	"context"
 	"fmt"
 	"sync"
+	"time"
 
 	"github.com/rs/zerolog"
 	"go.temporal.io/api/enums/v1"
 	"go.temporal.io/sdk/client"
+
 	"github.com/noldarim/noldarim/internal/logger"
 )
 
@@ -80,6 +82,14 @@ func NewClient(hostPort, namespace, taskQueue string) (*Client, error) {
 	temporalClient, err := client.Dial(options)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create Temporal client: %w", err)
+	}
+
+	// Verify the connection is actually reachable (Dial is lazy)
+	healthCtx, healthCancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer healthCancel()
+	if _, err := temporalClient.CheckHealth(healthCtx, &client.CheckHealthRequest{}); err != nil {
+		temporalClient.Close()
+		return nil, fmt.Errorf("temporal server not reachable at %s: %w", hostPort, err)
 	}
 
 	getTemporalLog().Info().Msgf("Connected to Temporal at %s, namespace: %s", hostPort, namespace)

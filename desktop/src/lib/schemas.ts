@@ -146,7 +146,7 @@ export const AIActivityRecordSchema = z.object({
   raw_payload: z.string().optional(),
   // Sub-agent tracking
   session_id: z.string().optional(),
-  is_sidechain: z.boolean().nullable().optional(),
+  is_sidechain: z.boolean().nullable().optional().transform(v => v ?? undefined),
   agent_id: z.string().optional(),
   parent_session_id: z.string().optional(),
   source_file: z.string().optional()

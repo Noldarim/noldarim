@@ -71,6 +71,7 @@ export const CommitNode = memo(function CommitNode({ data }: NodeProps<CommitNod
         <Handle id="main-top" type="target" position={Position.Top} />
         <Handle id="main-bottom" type="source" position={Position.Bottom} />
         <Handle id="run-source" type="source" position={Position.Right} />
+        <Handle id="run-source-top" type="source" position={Position.Top} />
         <Handle id="run-target" type="target" position={Position.Left} />
         {canFork && (
           <button type="button" className="commit-node__run-btn" onClick={handleFork} title="Run pipeline from here">

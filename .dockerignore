@@ -1,0 +1,29 @@
+# Dependencies & build artifacts
+bin/
+desktop/node_modules/
+node_modules/
+
+# Frontend (not needed for Go agent images)
+desktop/dist/
+frontend/
+
+# Development & docs
+.git/
+.github/
+docs/
+planning/
+examples/
+syn7-system-progress-log/
+logs/
+
+# IDE & OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
+
+# Sandbox (avoid recursive context)
+sandbox/
+
+# Claude
+.claude/
